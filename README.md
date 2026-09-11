@@ -23,7 +23,6 @@ Google AutoML Vision, and Azure Custom Vision.
 <br>
 
 ![macOS](https://img.shields.io/badge/macOS-ARM64_|_x64-000000?style=for-the-badge&logo=apple&logoColor=white)
-![Windows](https://img.shields.io/badge/Windows-x64-0078D4?style=for-the-badge&logo=windows11&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux_(Debian/Ubuntu)-x64-FCC624?style=for-the-badge&logo=linux&logoColor=black)
 
 <br>
@@ -280,10 +279,11 @@ bunx tauri dev
 
 ## Download
 
+Windows support is temporarily paused. Current builds and releases support macOS and Linux.
+
 | Platform | Architecture | Formats |
 | :--- | :--- | :--- |
 | **macOS** | ARM64 / x64 | `.dmg` |
-| **Windows** | x64 | `.exe` (NSIS) |
 | **Linux** | x64 | `.deb` · `.AppImage` |
 
 > [!TIP]
