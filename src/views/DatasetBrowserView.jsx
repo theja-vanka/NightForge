@@ -80,6 +80,9 @@ export function DatasetBrowserView() {
       offset,
       classFilter,
       imageFolder: imageFolderPath || null,
+      imageColumn: project?.imageColumn?.trim() || null,
+      labelColumn: project?.labelColumn?.trim() || null,
+      labelColumns: project?.taskType === "Multi-Label Classification" ? (project.labelColumns || "").split(",").map((v) => v.trim()).filter(Boolean) : null,
       search: searchQuery || null,
       split: (detectedSplits.length > 0 && !isCsvOrJsonl) ? effectiveSplit : null,
     })
@@ -91,7 +94,7 @@ export function DatasetBrowserView() {
         setError(String(err));
         setLoading(false);
       });
-  }, [datasetPath, datasetFormat, offset, filterKey, imageFolderPath, searchQuery, effectiveSplit, detectedSplits]);
+  }, [datasetPath, datasetFormat, offset, filterKey, imageFolderPath, project?.imageColumn, project?.labelColumn, project?.labelColumns, project?.taskType, searchQuery, effectiveSplit, detectedSplits]);
 
   // Close lightbox on Escape
   useEffect(() => {

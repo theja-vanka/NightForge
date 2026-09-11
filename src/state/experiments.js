@@ -259,9 +259,9 @@ export const filteredRuns = computed(() => {
     result = result.filter(
       (r) =>
         (r.name && r.name.toLowerCase().includes(q)) ||
-        r.id.toLowerCase().includes(q) ||
-        r.model.toLowerCase().includes(q) ||
-        r.dataset.toLowerCase().includes(q) ||
+        String(r.id ?? "").toLowerCase().includes(q) ||
+        String(r.model ?? "").toLowerCase().includes(q) ||
+        String(r.dataset ?? "").toLowerCase().includes(q) ||
         (r.tags && r.tags.some((t) => t.toLowerCase().includes(q))),
     );
   }

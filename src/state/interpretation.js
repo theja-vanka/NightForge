@@ -41,6 +41,7 @@ effect(() => {
     return;
   }
 
+  let cancelled = false;
   const runIds = runs.map((r) => r.id);
   const sshCommand =
     project.connectionType === "remote" ? project.sshCommand : null;
@@ -50,11 +51,12 @@ effect(() => {
     sshCommand,
   })
     .then((idsWithCkpt) => {
-      _runIdsWithCheckpoint.value = new Set(idsWithCkpt);
+      if (!cancelled) _runIdsWithCheckpoint.value = new Set(idsWithCkpt);
     })
     .catch(() => {
-      _runIdsWithCheckpoint.value = new Set();
+      if (!cancelled) _runIdsWithCheckpoint.value = new Set();
     });
+  return () => { cancelled = true; };
 });
 
 // Only runs that have a checkpoint on disk

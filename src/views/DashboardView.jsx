@@ -600,7 +600,7 @@ function buildStepsCommand(project, steps = "fit+test") {
   const env = envInfo.value;
   const useVenv = env && (env.status === "exists" || env.status === "created");
   const isConda = useVenv && env.envType === "conda";
-  const isWindows = platform.value === "windows";
+  const isWindows = project.connectionType !== "remote" && platform.value === "windows";
   const sep = isWindows ? "\\" : "/";
   const pp = (project.projectPath.endsWith("/") || project.projectPath.endsWith("\\"))
     ? project.projectPath.slice(0, -1)
@@ -609,13 +609,13 @@ function buildStepsCommand(project, steps = "fit+test") {
   const cfg = `${pp}${sep}config.yaml`;
 
   if (isConda) {
-    return `__STEPS__:conda:${pp}${sep}.venv:${cfg}:${steps}`;
+    return `__STEPS_JSON__:${JSON.stringify({ mode: "conda", env_path: `${pp}${sep}.venv`, config_path: cfg, steps })}`;
   } else {
     const venvPython = isWindows
       ? `${pp}\\.venv\\Scripts\\python.exe`
       : `${pp}/.venv/bin/python`;
     const python = useVenv ? venvPython : (isWindows ? "python" : "python3");
-    return `__STEPS__:direct:${python}:${cfg}:${steps}`;
+    return `__STEPS_JSON__:${JSON.stringify({ mode: "direct", env_path: python, config_path: cfg, steps })}`;
   }
 }
 
@@ -632,7 +632,7 @@ function buildCommandDisplay(project, steps = "fit+test") {
   const env = envInfo.value;
   const useVenv = env && (env.status === "exists" || env.status === "created");
   const isConda = useVenv && env.envType === "conda";
-  const isWindows = platform.value === "windows";
+  const isWindows = project.connectionType !== "remote" && platform.value === "windows";
   const sep = isWindows ? "\\" : "/";
   const pp = (project.projectPath.endsWith("/") || project.projectPath.endsWith("\\"))
     ? project.projectPath.slice(0, -1)
@@ -670,8 +670,10 @@ function StartTrainingButton() {
 
   const handleTrainClick = async () => {
     const runId = crypto.randomUUID();
-    await syncConfig(project, project.id, runId);
-    startTraining(command, project.projectPath, runId);
+    try {
+      await syncConfig(project, project.id, runId);
+      await startTraining(command, project.projectPath, runId, { projectId: project.id });
+    } catch (error) { alert(`Could not start training: ${error.message || error}`); }
   };
 
   const handleTestClick = async () => {
@@ -684,8 +686,10 @@ function StartTrainingButton() {
 
     // Write config with the completed run's ID so autotimm test finds the checkpoint
     const runId = crypto.randomUUID();
-    await syncConfig(project, project.id, latestRun.id);
-    startTraining(testCommand, project.projectPath, runId, { testOnly: true });
+    try {
+      await syncConfig(project, project.id, latestRun.id);
+      await startTraining(testCommand, project.projectPath, runId, { testOnly: true, projectId: project.id });
+    } catch (error) { alert(`Could not start evaluation: ${error.message || error}`); }
   };
 
   return (

@@ -27,6 +27,9 @@ jobs:
       - name: Lint frontend
         run: npm run lint
 
+      - name: Frontend regression tests
+        run: npm test
+
   build:
     needs: lint
     strategy:

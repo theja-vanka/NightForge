@@ -32,7 +32,7 @@ export function exportRunsAsCSV(runs) {
 }
 
 function escapeCSV(str) {
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;

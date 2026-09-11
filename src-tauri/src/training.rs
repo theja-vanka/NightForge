@@ -75,15 +75,24 @@ struct TrainingLog {
 
 /// Check whether a PID is still alive (Unix: kill(pid, 0)).
 fn is_pid_alive(pid: u32) -> bool {
+    if pid == 0 { return false; }
     #[cfg(unix)]
     {
         unsafe { libc::kill(pid as i32, 0) == 0 }
     }
-    #[cfg(not(unix))]
-    {
-        let _ = pid;
-        true
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::System::Threading::{OpenProcess, GetExitCodeProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+        use windows_sys::Win32::Foundation::CloseHandle;
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() { return false; }
+        let mut code = 0;
+        let ok = GetExitCodeProcess(handle, &mut code) != 0;
+        CloseHandle(handle);
+        ok && code == 259 // STILL_ACTIVE
     }
+    #[cfg(not(any(unix, windows)))]
+    { false }
 }
 
 fn meta_path(project_dir: &str) -> std::path::PathBuf {
@@ -116,6 +125,23 @@ fn remove_training_meta(project_dir: &str) {
     let _ = std::fs::remove_file(meta_path(project_dir));
 }
 
+fn read_complete_lines(path: &std::path::Path, offset: &mut u64) -> std::io::Result<Vec<String>> {
+    use std::io::{BufRead, Seek, SeekFrom};
+    let mut file = std::fs::File::open(path)?;
+    if file.metadata()?.len() < *offset { *offset = 0; }
+    file.seek(SeekFrom::Start(*offset))?;
+    let mut reader = std::io::BufReader::new(file);
+    let mut lines = Vec::new();
+    loop {
+        let mut bytes = Vec::new();
+        let count = reader.read_until(b'\n', &mut bytes)?;
+        if count == 0 || bytes.last() != Some(&b'\n') { break; }
+        *offset += count as u64;
+        lines.push(String::from_utf8_lossy(&bytes).trim_end_matches(['\r', '\n']).to_string());
+    }
+    Ok(lines)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn spawn_tail_task(
     path: std::path::PathBuf,
@@ -128,17 +154,11 @@ fn spawn_tail_task(
     skip_events: Option<Vec<String>>,
 ) {
     tokio::spawn(async move {
-        use std::io::{BufRead, Seek, SeekFrom};
         let mut offset = 0;
         loop {
             let is_alive = alive.load(Ordering::SeqCst);
-            let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-            if size > offset {
-                if let Ok(mut f) = std::fs::File::open(&path)
-                    && f.seek(SeekFrom::Start(offset)).is_ok()
-                {
-                    let reader = std::io::BufReader::new(f);
-                    for line in reader.lines().map_while(Result::ok) {
+            if let Ok(lines) = read_complete_lines(&path, &mut offset) {
+                    for line in lines {
                         if is_json {
                             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
                                 // Skip filtered event types (e.g. training_complete from fit stdout)
@@ -179,8 +199,6 @@ fn spawn_tail_task(
                             }
                         }
                     }
-                }
-                offset = size;
             }
             if !is_alive {
                 break;
@@ -188,6 +206,28 @@ fn spawn_tail_task(
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
     });
+}
+
+#[derive(serde::Deserialize)]
+struct StepsCommand {
+    mode: String,
+    env_path: String,
+    config_path: String,
+    steps: String,
+}
+
+fn parse_steps_command(command: &str) -> Result<Option<StepsCommand>, String> {
+    let parsed = if let Some(json) = command.strip_prefix("__STEPS_JSON__:") {
+        serde_json::from_str::<StepsCommand>(json).map_err(|e| format!("Invalid training command: {e}"))?
+    } else if let Some(rest) = command.strip_prefix("__STEPS__:") {
+        let parts: Vec<&str> = rest.splitn(4, ':').collect();
+        if parts.len() < 3 { return Err("Malformed legacy training command".into()); }
+        StepsCommand { mode: parts[0].into(), env_path: parts[1].into(), config_path: parts[2].into(), steps: parts.get(3).copied().unwrap_or("fit+test").into() }
+    } else { return Ok(None); };
+    if !matches!(parsed.mode.as_str(), "direct" | "conda") || !matches!(parsed.steps.as_str(), "fit" | "test" | "fit+test") || parsed.env_path.is_empty() || parsed.config_path.is_empty() {
+        return Err("Invalid training mode, paths, or steps".into());
+    }
+    Ok(Some(parsed))
 }
 
 #[command]
@@ -221,18 +261,11 @@ pub async fn start_training(
     let log_file_str = log_file_path.to_string_lossy().to_string();
 
     // ── Structured multi-step command ─────────────────────────────────────────
-    if let Some(rest) = command.strip_prefix("__STEPS__:") {
-        let parts: Vec<&str> = rest.splitn(4, ':').collect();
-        if parts.len() < 3 {
-            return Err(format!(
-                "Malformed __STEPS__ command (expected mode:path:config[:steps]): {}",
-                command
-            ));
-        }
-        let mode = parts[0].to_string();
-        let env_path = expand_tilde(parts[1]);
-        let config_path = expand_tilde(parts[2]);
-        let steps = if parts.len() >= 4 { parts[3] } else { "fit+test" };
+    if let Some(parsed) = parse_steps_command(&command)? {
+        let mode = parsed.mode;
+        let env_path = expand_tilde(&parsed.env_path);
+        let config_path = expand_tilde(&parsed.config_path);
+        let steps = parsed.steps;
         let run_fit = steps.contains("fit");
         let run_test = steps.contains("test");
 
@@ -329,9 +362,10 @@ pub async fn start_training(
             let _ = std::fs::create_dir_all(&logs_dir);
 
             let mut fit_failed = false;
+            let mut terminal_error: Option<String> = None;
 
             // ── Step 1: fit ─────────────────────────────────────────────────
-            if run_fit {
+            if run_fit && alive2.load(Ordering::SeqCst) {
                 let fit_stdout_path = logs_dir.join("fit_stdout.log");
                 let fit_stderr_path = logs_dir.join("fit_stderr.log");
                 let fit_stdout_file = match std::fs::OpenOptions::new().create(true).append(true).open(&fit_stdout_path) {
@@ -388,6 +422,12 @@ pub async fn start_training(
                 };
 
                 let fit_pid = fit_child.id().unwrap_or(0);
+                if !alive2.load(Ordering::SeqCst) {
+                    kill_process_tree(fit_pid);
+                    let _ = fit_child.kill().await;
+                    remove_training_meta(&cwd2);
+                    return;
+                }
                 let updated_meta = TrainingMeta {
                     pid: fit_pid,
                     session_id: sid.clone(),
@@ -437,18 +477,13 @@ pub async fn start_training(
                     } else {
                         format!("fit step failed:\n{}", stderr_tail)
                     };
-                    let _ = app2.emit("training-event", TrainingEvent {
-                        session_id: sid.clone(),
-                        data: serde_json::json!({ "event": "training_error", "error": error_msg }),
-                    });
-                    alive2.store(false, Ordering::SeqCst);
-                    remove_training_meta(&cwd2);
+                    terminal_error = Some(error_msg);
                     fit_failed = true;
                 }
             }
 
             // ── Step 2: test ────────────────────────────────────────────────
-            if run_test && !fit_failed {
+            if run_test && !fit_failed && alive2.load(Ordering::SeqCst) {
                 let test_stdout_path = logs_dir.join("test_stdout.log");
                 let test_stderr_path = logs_dir.join("test_stderr.log");
                 let test_stdout_file = match std::fs::OpenOptions::new().create(true).append(true).open(&test_stdout_path) {
@@ -499,6 +534,18 @@ pub async fn start_training(
                 { c.creation_flags(0x00000200 | 0x08000000); } // CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
                 match c.spawn() {
                     Ok(mut child) => {
+                        let test_meta = TrainingMeta {
+                            pid: child.id().unwrap_or(0), session_id: sid.clone(), run_id: run_id.clone(),
+                            log_file: log_file_str.clone(), command: command.clone(),
+                            started_at: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs_f64(),
+                        };
+                        let _ = write_training_meta(&cwd2, &test_meta);
+                        if !alive2.load(Ordering::SeqCst) {
+                            if let Some(pid) = child.id() { kill_process_tree(pid); }
+                            let _ = child.kill().await;
+                            remove_training_meta(&cwd2);
+                            return;
+                        }
                         spawn_tail_task(
                             test_stdout_path,
                             Arc::clone(&alive2),
@@ -519,30 +566,35 @@ pub async fn start_training(
                             None,
                             None,
                         );
-                        let _ = child.wait().await;
+                        let test_ok = child.wait().await.map(|s| s.success()).unwrap_or(false);
+                        if !test_ok {
+                            fit_failed = true;
+                            terminal_error = Some("Evaluation process failed; see test stderr log.".into());
+                        }
                         // Give tail tasks time to drain remaining events
                         // before we set alive=false and emit training_complete
                         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                     }
                     Err(e) => {
-                        let _ = app2.emit("training-event", TrainingEvent {
-                            session_id: sid.clone(),
-                            data: serde_json::json!({
-                                "event": "training_error",
-                                "error": format!("test step failed to spawn: {}", e)
-                            }),
-                        });
+                        terminal_error = Some(format!("test step failed to spawn: {}", e));
+                        fit_failed = true;
                     }
                 }
             }
 
-            if !fit_failed {
+            let completed = !fit_failed && alive2.load(Ordering::SeqCst);
+            alive2.store(false, Ordering::SeqCst);
+            remove_training_meta(&cwd2);
+            if let Some(error) = terminal_error {
+                let _ = app2.emit("training-event", TrainingEvent {
+                    session_id: sid.clone(),
+                    data: serde_json::json!({ "event": "training_error", "error": error }),
+                });
+            } else if completed {
                 let _ = app2.emit("training-event", TrainingEvent {
                     session_id: sid.clone(),
                     data: serde_json::json!({ "event": "training_complete" }),
                 });
-                alive2.store(false, Ordering::SeqCst);
-                remove_training_meta(&cwd2);
             }
         });
 
@@ -884,4 +936,39 @@ pub async fn watch_training_log(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod command_tests {
+    use super::*;
+    #[test]
+    fn structured_paths_preserve_colons_and_spaces() {
+        let command = format!("__STEPS_JSON__:{}", serde_json::json!({"mode":"direct", "env_path":r"C:\My Project\python.exe", "config_path":r"C:\My Project\config.yaml", "steps":"fit+test"}));
+        let parsed = parse_steps_command(&command).unwrap().unwrap();
+        assert_eq!(parsed.env_path, r"C:\My Project\python.exe");
+        assert_eq!(parsed.config_path, r"C:\My Project\config.yaml");
+    }
+    #[test]
+    fn zero_pid_is_not_a_process() { assert!(!is_pid_alive(0)); }
+    #[test]
+    fn log_reader_preserves_partial_events() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join(format!("nightflow-log-test-{}", std::process::id()));
+        std::fs::write(&path, b"first\n{\"event\":").unwrap();
+        let mut offset = 0;
+        assert_eq!(read_complete_lines(&path, &mut offset).unwrap(), vec!["first"]);
+        assert_eq!(offset, 6);
+        let mut file = std::fs::OpenOptions::new().append(true).open(&path).unwrap();
+        file.write_all(b"\"done\"}\n").unwrap();
+        assert_eq!(read_complete_lines(&path, &mut offset).unwrap(), vec!["{\"event\":\"done\"}"]);
+        std::fs::write(&path, b"new\n").unwrap();
+        assert_eq!(read_complete_lines(&path, &mut offset).unwrap(), vec!["new"]);
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn rejects_invalid_steps() {
+        assert!(parse_steps_command("__STEPS__:direct:python:config.yaml:misfit").is_err());
+        assert!(parse_steps_command("__STEPS_JSON__:{}").is_err());
+        assert!(parse_steps_command("python -m autotimm fit").unwrap().is_none());
+    }
 }
