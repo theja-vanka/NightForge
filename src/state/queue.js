@@ -45,11 +45,11 @@ export function clearQueue() {
  * Called when training completes or fails for a project.
  * Starts the next queued run if one exists.
  */
-export async function processQueue(projectId) {
+export async function processQueue(projectId, status = "done") {
   // Mark current running entry as done
   runQueue.value = runQueue.value.map((q) =>
     q.projectId === projectId && q.status === "running"
-      ? { ...q, status: "done" }
+      ? { ...q, status }
       : q,
   );
 
@@ -66,7 +66,11 @@ export async function processQueue(projectId) {
 
   const project = projectList.value.find((p) => p.id === projectId);
   if (project && next.config) {
-    await syncConfig(project, projectId, next.config.runId);
-    startTraining(next.config.command, next.config.cwd, next.config.runId);
+    try {
+      await syncConfig(project, projectId, next.config.runId);
+      await startTraining(next.config.command, next.config.cwd, next.config.runId, { projectId });
+    } catch (error) {
+      runQueue.value = runQueue.value.map((q) => q.id === next.id ? { ...q, status: "failed", error: String(error) } : q);
+    }
   }
 }

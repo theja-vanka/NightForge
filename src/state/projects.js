@@ -80,7 +80,7 @@ export async function loadProjects() {
         ...(p.imageSize === undefined && { imageSize: "" }),
         ...(p.augmentationPreset === undefined && { augmentationPreset: "" }),
         ...(p.freezeBackbone === undefined && { freezeBackbone: false }),
-        ...((p.seed === undefined || p.seed === "") && { seed: 42 }),
+        ...((p.seed === undefined) && { seed: 42 }),
         ...(p.earlyStopping === undefined && { earlyStopping: false }),
         ...(p.earlyStoppingPatience === undefined && {
           earlyStoppingPatience: "",
@@ -135,145 +135,7 @@ export const TASK_TYPES = [
   },
 ];
 
-export const MODEL_CATEGORIES = {
-  Edge: {
-    desc: "Lightweight models for mobile & embedded deployment",
-    models: [
-      "mobilenetv2_100",
-      "mobilenetv2_140",
-      "mobilenetv2_050",
-      "mobilenetv3_small_100",
-    ],
-  },
-  Balanced: {
-    desc: "Good accuracy-speed tradeoff for general use",
-    models: [
-      "efficientnet_b2",
-      "efficientnet_b3",
-      "efficientnet_b0",
-      "efficientnet_lite0",
-    ],
-  },
-  Cloud: {
-    desc: "High-accuracy models for server-side inference",
-    models: [
-      "swin_base_patch4_window7_224",
-      "swin_large_patch4_window7_224",
-      "deit3_base_patch16_224",
-      "beit_base_patch16_224",
-    ],
-  },
-  Research: {
-    desc: "State-of-the-art transformer architectures",
-    models: [
-      "eva02_large_patch14_448.mim_m38m_ft_in22k_in1k",
-      "eva02_base_patch14_448.mim_in22k_ft_in22k_in1k",
-      "convnextv2_huge.fcmae_ft_in22k_in1k_512",
-      "maxvit_xlarge_tf_512.in21k_ft_in1k",
-    ],
-  },
-};
-
-export const DETECTION_ARCHS = ["fcos", "yolox"];
-
-export const YOLOX_MODEL_CATEGORIES = {
-  Edge: {
-    desc: "Lightweight YOLOX variants for mobile & embedded",
-    models: ["yolox-nano", "yolox-tiny"],
-  },
-  Balanced: {
-    desc: "Good accuracy-speed tradeoff for general use",
-    models: ["yolox-s", "yolox-m"],
-  },
-  Cloud: {
-    desc: "High-accuracy YOLOX for server-side inference",
-    models: ["yolox-l", "yolox-x"],
-  },
-  Research: {
-    desc: "Largest YOLOX variant for maximum accuracy",
-    models: ["yolox-x"],
-  },
-};
-
-export const DETECTION_MODEL_CATEGORIES = {
-  Edge: {
-    desc: "Lightweight models for mobile & embedded detection",
-    models: [
-      "mobilenetv2_100",
-      "mobilenetv2_140",
-      "mobilenetv3_small_100",
-      "mobilenetv3_large_100",
-    ],
-  },
-  Balanced: {
-    desc: "Good accuracy-speed tradeoff for general use",
-    models: [
-      "resnet50",
-      "resnet101",
-      "efficientnet_b3",
-      "efficientnet_b4",
-    ],
-  },
-  Cloud: {
-    desc: "High-accuracy models for server-side detection",
-    models: [
-      "swin_base_patch4_window7_224",
-      "swin_large_patch4_window7_224",
-      "convnext_base",
-      "convnext_large",
-    ],
-  },
-  Research: {
-    desc: "State-of-the-art architectures for dense prediction",
-    models: [
-      "convnextv2_huge.fcmae_ft_in22k_in1k_512",
-      "swin_large_patch4_window12_384",
-      "convnextv2_large.fcmae_ft_in22k_in1k_384",
-      "convnext_xlarge_384_in22ft1k",
-    ],
-  },
-};
-
-export const SEGMENTATION_MODEL_CATEGORIES = {
-  Edge: {
-    desc: "Lightweight models for mobile & embedded segmentation",
-    models: [
-      "mobilenetv2_100",
-      "mobilenetv2_140",
-      "mobilenetv3_small_100",
-      "mobilenetv3_large_100",
-    ],
-  },
-  Balanced: {
-    desc: "Good accuracy-speed tradeoff for general use",
-    models: [
-      "resnet50",
-      "resnet101",
-      "efficientnet_b3",
-      "efficientnet_b4",
-    ],
-  },
-  Cloud: {
-    desc: "High-accuracy models for server-side segmentation",
-    models: [
-      "swin_base_patch4_window7_224",
-      "swin_large_patch4_window7_224",
-      "convnext_base",
-      "convnext_large",
-    ],
-  },
-  Research: {
-    desc: "State-of-the-art architectures for dense prediction",
-    models: [
-      "convnextv2_huge.fcmae_ft_in22k_in1k_512",
-      "swin_large_patch4_window12_384",
-      "convnextv2_large.fcmae_ft_in22k_in1k_384",
-      "convnext_xlarge_384_in22ft1k",
-    ],
-  },
-};
-
-export const SEG_HEAD_TYPES = ["deeplabv3plus", "fcn"];
+export { MODEL_CATEGORIES, DETECTION_ARCHS, YOLOX_MODEL_CATEGORIES, DETECTION_MODEL_CATEGORIES, SEGMENTATION_MODEL_CATEGORIES, SEG_HEAD_TYPES } from "../utils/modelCatalog.js";
 
 // Dataset formats per task
 export const DATASET_FORMATS = {
@@ -288,14 +150,9 @@ export const DATASET_FORMATS = {
       label: "CSV",
       desc: "Comma-separated file with image paths and labels",
     },
-    {
-      id: "JSONL",
-      label: "JSONL",
-      desc: "One JSON object per line with image and label",
-    },
   ],
   "Multi-Label Classification": [
-    { id: "CSV", label: "CSV", desc: "Image paths with pipe-separated labels" },
+    { id: "CSV", label: "CSV", desc: "Image path column followed by one 0/1 column per label" },
     { id: "JSONL", label: "JSONL", desc: "JSON objects with label arrays" },
   ],
   "Object Detection": [
@@ -308,11 +165,6 @@ export const DATASET_FORMATS = {
       id: "CSV",
       label: "CSV",
       desc: "Rows with image path, bounding box, and label",
-    },
-    {
-      id: "JSONL",
-      label: "JSONL",
-      desc: "JSON objects with bounding box lists",
     },
   ],
   "Semantic Segmentation": [
@@ -337,11 +189,6 @@ export const DATASET_FORMATS = {
       desc: "Pascal VOC layout with SegmentationClass masks",
     },
     { id: "CSV", label: "CSV", desc: "Image path to mask path mapping" },
-    {
-      id: "JSONL",
-      label: "JSONL",
-      desc: "JSON objects mapping images to masks",
-    },
   ],
   "Instance Segmentation": [
     {
@@ -353,11 +200,6 @@ export const DATASET_FORMATS = {
       id: "CSV",
       label: "CSV",
       desc: "Rows with image, mask path, label, and instance ID",
-    },
-    {
-      id: "JSONL",
-      label: "JSONL",
-      desc: "JSON objects with instance annotation lists",
     },
   ],
 };
@@ -459,6 +301,9 @@ const defaultData = {
   valPath: "",
   testPath: "",
   imageFolderPath: "",
+  imageColumn: "",
+  labelColumn: "",
+  labelColumns: "",
   numClasses: "",
   classNames: [],
   powerUserMode: false,
@@ -478,6 +323,9 @@ const defaultData = {
   earlyStoppingPatience: "",
   earlyStoppingMonitor: "val/loss",
   gpuDevices: "",
+  accelerator: "auto",
+  numWorkers: "",
+  compileModel: false,
 };
 
 export const STEP_COUNT = 6;
@@ -518,7 +366,7 @@ export const wizardCanProceed = computed(() => {
   if (step === 4) {
     if (!d.datasetFormat) return false;
     // Require numClasses for all formats
-    const hasClasses = d.numClasses !== "" && d.numClasses >= 2;
+    const hasClasses = d.numClasses !== "" && Number.isInteger(Number(d.numClasses)) && d.numClasses >= (d.taskType === "Classification" ? 2 : 1);
     // For CSV and JSONL, require train and test paths (val is optional)
     if (d.datasetFormat === "CSV" || d.datasetFormat === "JSONL") {
       return (
@@ -585,7 +433,7 @@ export async function addProject(project) {
   }
 }
 
-export function wizardCreate() {
+export async function wizardCreate() {
   if (!wizardCanProceed.value) return;
   const d = wizardData.value;
   const project = {
@@ -610,6 +458,9 @@ export function wizardCreate() {
     imageFolderPath: d.imageFolderPath.trim()
       ? d.imageFolderPath.trim().replace(/\/*$/, "/")
       : "",
+    imageColumn: d.imageColumn.trim(),
+    labelColumn: d.labelColumn.trim(),
+    labelColumns: d.labelColumns.trim(),
     numClasses: d.numClasses !== "" ? d.numClasses : "",
     classNames: Array.isArray(d.classNames) ? d.classNames : [],
     powerUserMode: false,
@@ -629,7 +480,7 @@ export function wizardCreate() {
     earlyStoppingPatience: "",
     earlyStoppingMonitor: "val/loss",
   };
-  addProject(project);
+  await addProject(project);
   closeWizard();
 }
 

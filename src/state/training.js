@@ -11,6 +11,7 @@ const _notify = notify;
 
 // ── Per-project training state ───────────────────────────────────────────────
 
+const _startingProjects = new Set();
 const _trainingState = signal({}); // { [projectId]: TrainingState }
 
 const _defaultTraining = () => ({
@@ -108,11 +109,13 @@ export function getTrainingRunId(projectId) {
 
 // ── Start / stop training ────────────────────────────────────────────────────
 
-export async function startTraining(command, cwd, passedRunId, { testOnly = false } = {}) {
-  const projectId = currentProjectId.value;
+export async function startTraining(command, cwd, passedRunId, { testOnly = false, projectId = currentProjectId.value } = {}) {
   if (!projectId) return;
 
-  const project = currentProject.value;
+  if (_get(projectId).active || _startingProjects.has(projectId)) throw new Error("Training already running for this project");
+  const project = projectList.value.find((p) => p.id === projectId);
+  if (!project) throw new Error("Training project no longer exists");
+  if (project.connectionType === "remote") throw new Error("Managed training currently launches local processes only. Run AutoTimm in the connected remote terminal to train on the remote machine.");
   const runId = passedRunId || crypto.randomUUID();
   const runName = generateRunName();
 
@@ -144,6 +147,9 @@ export async function startTraining(command, cwd, passedRunId, { testOnly = fals
 
   // Create a run record in experiments — persist everything so RunDetail
   // can render fully even if log files are later deleted.
+  _startingProjects.add(projectId);
+  let runCreated = false;
+  try {
   await addRun({
     id: runId,
     name: runName,
@@ -168,6 +174,7 @@ export async function startTraining(command, cwd, passedRunId, { testOnly = fals
     created: new Date().toISOString(),
   });
 
+  runCreated = true;
   _set(projectId, {
     ..._defaultTraining(),
     active: true,
@@ -176,7 +183,6 @@ export async function startTraining(command, cwd, passedRunId, { testOnly = fals
     event: "preparing",
   });
 
-  try {
     await invoke("start_training", {
       sessionId: projectId,
       runId,
@@ -190,7 +196,10 @@ export async function startTraining(command, cwd, passedRunId, { testOnly = fals
       event: "training_error",
       error: `${err}`,
     });
-    await updateRun(runId, { status: "failed" });
+    if (runCreated) await updateRun(runId, { status: "failed" });
+    throw err;
+  } finally {
+    _startingProjects.delete(projectId);
   }
 }
 
@@ -233,7 +242,7 @@ export async function forceResetTraining() {
 
   _set(projectId, _defaultTraining());
 
-  if (state.runId) {
+  if (state.runId && state.active) {
     await updateRun(state.runId, { status: "failed" });
   }
 }
@@ -498,7 +507,7 @@ function _processEvent(session_id, data) {
       );
 
       // Process next queued run
-      processQueue(session_id);
+      processQueue(session_id, "failed");
       break;
     }
   }

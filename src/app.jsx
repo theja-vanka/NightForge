@@ -63,8 +63,7 @@ function CurrentView() {
 export function App() {
   useEffect(() => {
     // Load data from database
-    loadProjects();
-    loadRuns();
+    loadProjects().then(() => loadRuns());
 
     // Start listening for training events
     initTrainingListeners();

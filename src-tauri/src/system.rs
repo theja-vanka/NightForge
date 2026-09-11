@@ -122,7 +122,7 @@ pub async fn get_system_metrics(ssh_command: Option<String>, project_path: Optio
         }
     } else {
         let python = if let Some(ref pp) = project_path {
-            let venv_python = crate::env::venv_python(&std::path::PathBuf::from(pp).join(".venv"));
+            let venv_python = crate::env::venv_python(&std::path::PathBuf::from(crate::expand_tilde(pp)).join(".venv"));
             if venv_python.exists() {
                 venv_python.to_string_lossy().to_string()
             } else {

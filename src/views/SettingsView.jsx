@@ -1,5 +1,7 @@
+import { CsvColumnFields } from "../components/CsvColumnFields.jsx";
 import { useState, useEffect, useRef } from "preact/hooks";
 import { invoke } from "@tauri-apps/api/core";
+import { validateTrainingProject } from "../utils/configBuilder.js";
 import { theme, toggleTheme } from "../state/theme.js";
 import {
   currentProject,
@@ -55,6 +57,13 @@ const EDITABLE_KEYS = [
   "earlyStoppingPatience",
   "earlyStoppingMonitor",
   "gpuDevices",
+  "imageFolderPath",
+  "imageColumn",
+  "labelColumn",
+  "labelColumns",
+  "accelerator",
+  "numWorkers",
+  "compileModel",
 ];
 
 // Read-only fields that need to be included in draft for rendering
@@ -76,7 +85,7 @@ function pick(obj) {
 
 function isDirty(draft, source) {
   for (const k of EDITABLE_KEYS) {
-    if (draft[k] !== source[k]) return true;
+    if (draft[k] !== (source[k] ?? "")) return true;
   }
   return false;
 }
@@ -317,21 +326,21 @@ export function SettingsView() {
   async function handleSave() {
     try {
       const normalized = { ...draft };
+      validateTrainingProject(normalized);
       if (normalized.projectPath)
         normalized.projectPath = ensureTrailingSlash(normalized.projectPath);
       if (normalized.folderPath)
         normalized.folderPath = ensureTrailingSlash(normalized.folderPath);
       await updateProject(proj.id, normalized);
       // Regenerate config.yaml with updated settings
-      const updatedProject = { ...proj, ...draft };
-      syncConfig(updatedProject, proj.id).catch((err) =>
-        console.warn("[handleSave] syncConfig error:", err),
-      );
+      const updatedProject = { ...proj, ...normalized };
+      await syncConfig(updatedProject, proj.id);
       setSaved(true);
       clearTimeout(savedTimer.current);
       savedTimer.current = setTimeout(() => setSaved(false), 2000);
     } catch (error) {
       console.error("Error saving project:", error);
+      alert(`Could not save training configuration: ${error.message || error}`);
     }
   }
 
@@ -715,6 +724,8 @@ export function SettingsView() {
                     </div>
                   </>
                 )}
+
+              {draft.datasetFormat === "CSV" && <div class="settings-card-row"><CsvColumnFields value={draft} onChange={set} disabled={locked} /></div>}
 
               <div class="settings-card-divider" />
               <div class="settings-card-row">
@@ -1280,9 +1291,32 @@ export function SettingsView() {
               <div class="settings-card-divider" />
               <div class="settings-card-row">
                 <label class="settings-field">
+                  <span class="settings-label">Accelerator</span>
+                  <select class="settings-input" value={draft.accelerator || (draft.gpuDevices ? "cuda" : "auto")} disabled={locked}
+                    onChange={(e) => { set("accelerator", e.target.value); if (e.target.value !== "cuda") set("gpuDevices", ""); }}>
+                    <option value="auto">Auto (training machine)</option>
+                    <option value="cuda">NVIDIA CUDA</option>
+                    <option value="mps">Apple Metal (MPS)</option>
+                    <option value="cpu">CPU (Intel, AMD, Apple silicon)</option>
+                  </select>
+                </label>
+              </div>
+              <div class="settings-card-row">
+                <label class="settings-field">
+                  <span class="settings-label">Data-loader workers</span>
+                  <input class="settings-input" type="number" min="0" value={draft.numWorkers} placeholder="AutoTimm default" disabled={locked}
+                    onInput={(e) => set("numWorkers", e.target.value === "" ? "" : Number(e.target.value))} />
+                </label>
+              </div>
+              <div class="settings-card-row settings-row-between">
+                <div><div class="settings-label">Compile model</div><div class="settings-desc">Optional optimization; leave off for portable CPU and Metal execution.</div></div>
+                <button class="settings-theme-btn" disabled={locked} onClick={() => set("compileModel", !draft.compileModel)}>{draft.compileModel ? "On" : "Off"}</button>
+              </div>
+              <div class="settings-card-row">
+                <label class="settings-field">
                   <span class="settings-label">GPU Devices</span>
                   <span class="settings-hint">
-                    CUDA_VISIBLE_DEVICES — e.g. 0 or 0,1 (leave empty for auto)
+                    CUDA device indices, e.g. 0 or 0,1. Clear for CPU, Metal, or Auto.
                   </span>
                   <input
                     class="settings-input"
@@ -1297,6 +1331,15 @@ export function SettingsView() {
             </div>
           </section>
         </>
+      )}
+
+      {(draft.datasetFormat === "CSV" || draft.datasetFormat === "JSONL") && (
+        <section class="settings-section"><div class="settings-card"><div class="settings-card-row">
+          <label class="settings-field"><span class="settings-label">Image / mask root directory</span>
+            <span class="settings-hint">Directory used to resolve relative paths in the dataset.</span>
+            <input class="settings-input" value={draft.imageFolderPath} disabled={locked} onInput={(e) => set("imageFolderPath", e.target.value)} />
+          </label>
+        </div></div></section>
       )}
 
       {/* Save bar */}

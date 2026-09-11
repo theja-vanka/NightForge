@@ -647,7 +647,7 @@
                     <tr>
                         <td><strong>Window Effects</strong></td>
                         <td>window-vibrancy</td>
-                        <td>Windows 11 Mica backdrop for native translucent feel</td>
+                        <td>Retained Windows 11 Mica implementation; Windows support is currently paused</td>
                     </tr>
                     <tr>
                         <td><strong>External Links</strong></td>
@@ -707,7 +707,7 @@
                     <tr><th>Module</th><th>Responsibility</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td><code>main.rs</code></td><td>Tauri app bootstrap, plugin registration, shared state, Windows 11 version check, Mica backdrop, custom window controls</td></tr>
+                    <tr><td><code>main.rs</code></td><td>Tauri app bootstrap, plugin registration, shared state, custom window controls, retained Windows version check and Mica implementation (support paused)</td></tr>
                     <tr><td><code>pty.rs</code></td><td>Spawning and managing pseudo-terminals for local shell and SSH</td></tr>
                     <tr><td><code>ssh.rs</code></td><td>Async SSH connections via Tokio for remote training workflows</td></tr>
                     <tr><td><code>fs.rs</code></td><td>Reading datasets, dataset browsing with automatic split detection, managing checkpoints, handling model exports</td></tr>
@@ -807,11 +807,6 @@
                         <td>macOS</td>
                         <td><code>.dmg</code></td>
                         <td>~15 MB</td>
-                    </tr>
-                    <tr>
-                        <td>Windows 11+</td>
-                        <td><code>.exe</code> (NSIS, self-signed)</td>
-                        <td>~12 MB</td>
                     </tr>
                     <tr>
                         <td>Linux</td>

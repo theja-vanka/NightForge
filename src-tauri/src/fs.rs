@@ -138,7 +138,8 @@ pub struct PathValidationResult {
 #[command]
 pub fn validate_folder_path(path: String) -> PathValidationResult {
     use std::path::Path;
-    let path_obj = Path::new(&path);
+    let expanded = expand_tilde(&path);
+    let path_obj = Path::new(&expanded);
     if !path_obj.exists() {
         return PathValidationResult {
             valid: false,
@@ -160,7 +161,8 @@ pub fn validate_folder_path(path: String) -> PathValidationResult {
 #[command]
 pub fn validate_file_path(path: String, expected_extension: Option<String>) -> PathValidationResult {
     use std::path::Path;
-    let path_obj = Path::new(&path);
+    let expanded = expand_tilde(&path);
+    let path_obj = Path::new(&expanded);
     if !path_obj.exists() {
         return PathValidationResult {
             valid: false,
@@ -268,6 +270,13 @@ pub struct DatasetBrowseResult {
     pub class_counts: std::collections::HashMap<String, usize>,
 }
 
+fn csv_column_index(headers: &csv::StringRecord, name: Option<&str>, fallback: usize) -> Result<usize, String> {
+    match name.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(name) => headers.iter().position(|h| h == name).ok_or_else(|| format!("CSV column '{name}' was not found. Check the column mapping.")),
+        None => Ok(fallback),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 #[command]
 pub fn browse_dataset(
@@ -277,9 +286,13 @@ pub fn browse_dataset(
     offset: usize,
     class_filter: Option<Vec<String>>,
     image_folder: Option<String>,
+    image_column: Option<String>,
+    label_column: Option<String>,
+    label_columns: Option<Vec<String>>,
     search: Option<String>,
     split: Option<String>,
 ) -> Result<DatasetBrowseResult, String> {
+    let is_multilabel = label_columns.is_some();
     let expanded = expand_tilde(&path);
     let resolved_path = std::path::PathBuf::from(&expanded);
 
@@ -406,18 +419,27 @@ pub fn browse_dataset(
         let image_col_names = ["image_path", "image", "file", "filename", "filepath", "path", "img"];
         let label_col_names = ["label", "class", "category", "target", "class_name"];
 
-        let image_col_idx = headers.iter().position(|h| {
-            image_col_names.contains(&h.to_lowercase().as_str())
-        }).unwrap_or(0);
-
-        let label_col_idx = headers.iter().position(|h| {
-            label_col_names.contains(&h.to_lowercase().as_str())
-        }).unwrap_or(if image_col_idx == 0 { 1 } else { 0 });
+        let image_default = headers.iter().position(|h| image_col_names.contains(&h.to_lowercase().as_str())).unwrap_or(0);
+        let image_col_idx = csv_column_index(&headers, image_column.as_deref(), image_default)?;
+        let label_default = headers.iter().position(|h| label_col_names.contains(&h.to_lowercase().as_str())).unwrap_or(if image_col_idx == 0 { 1 } else { 0 });
+        let label_col_idx = if is_multilabel { label_default } else { csv_column_index(&headers, label_column.as_deref(), label_default)? };
+        let multi_indices = if let Some(ref names) = label_columns {
+            if names.is_empty() {
+                (0..headers.len()).filter(|i| *i != image_col_idx).collect::<Vec<_>>()
+            } else {
+                names.iter().map(|name| csv_column_index(&headers, Some(name), 0)).collect::<Result<Vec<_>, _>>()?
+            }
+        } else { Vec::new() };
+        for &index in &multi_indices { class_counts.insert(headers[index].to_string(), 0); }
 
         for result in rdr.records() {
             let record = result.map_err(|e| format!("CSV parse error: {}", e))?;
             let img_raw = record.get(image_col_idx).unwrap_or("").to_string();
-            let label = record.get(label_col_idx).unwrap_or("unknown").to_string();
+            let active_labels: Vec<String> = if is_multilabel {
+                multi_indices.iter().filter(|&&i| record.get(i).and_then(|v| v.trim().parse::<f64>().ok()).is_some_and(|v| v > 0.0))
+                    .map(|&i| headers[i].to_string()).collect()
+            } else { vec![record.get(label_col_idx).unwrap_or("unknown").to_string()] };
+            let label = active_labels.join(" | ");
 
             if img_raw.is_empty() { continue; }
 
@@ -438,7 +460,7 @@ pub fn browse_dataset(
                 .to_lowercase();
             if !image_exts.contains(&ext.as_str()) { continue; }
 
-            *class_counts.entry(label.clone()).or_insert(0) += 1;
+            for name in active_labels { *class_counts.entry(name).or_insert(0) += 1; }
             all_images.push(DatasetImage {
                 path: full_path.to_string_lossy().to_string(),
                 label,
@@ -517,7 +539,7 @@ pub fn browse_dataset(
     if let Some(ref filters) = class_filter
         && !filters.is_empty()
     {
-        all_images.retain(|img| filters.contains(&img.label));
+        all_images.retain(|img| filters.contains(&img.label) || (is_multilabel && img.label.split(" | ").any(|label| filters.iter().any(|f| f == label))));
     }
 
     // Apply search filter if provided (matches filename or label, case-insensitive)
@@ -1154,5 +1176,41 @@ fn validate_voc(
 
     if voc_root != root {
         info.insert("voc_root".into(), voc_root.to_string_lossy().to_string());
+    }
+}
+
+#[cfg(test)]
+mod csv_mapping_tests {
+    use super::*;
+    #[test]
+    fn resolves_exact_headers_and_rejects_missing_names() {
+        let headers = csv::StringRecord::from(vec!["id", "diagnosis", "scan_file"]);
+        assert_eq!(csv_column_index(&headers, Some("scan_file"), 0).unwrap(), 2);
+        assert_eq!(csv_column_index(&headers, Some("diagnosis"), 0).unwrap(), 1);
+        assert_eq!(csv_column_index(&headers, None, 0).unwrap(), 0);
+        assert!(csv_column_index(&headers, Some("Scan_File"), 0).is_err());
+    }
+    #[test]
+    fn multilabel_preview_counts_and_filters_selected_headers() {
+        let path = std::env::temp_dir().join(format!("nightflow-multilabel-{}.csv", std::process::id()));
+        std::fs::write(&path, "scan,cat,dog,bird\na.png,1,0,0\nb.png,1,1,0\n").unwrap();
+        let result = browse_dataset(path.to_string_lossy().into(), "CSV".into(), 10, 0, Some(vec!["dog".into()]), None,
+            Some("scan".into()), None, Some(vec!["cat".into(), "dog".into(), "bird".into()]), None, None).unwrap();
+        assert_eq!(result.total, 1);
+        assert_eq!(result.class_counts["cat"], 2);
+        assert_eq!(result.class_counts["bird"], 0);
+        assert!(result.images[0].path.ends_with("b.png"));
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn preview_uses_custom_columns() {
+        let path = std::env::temp_dir().join(format!("nightflow-columns-{}.csv", std::process::id()));
+        std::fs::write(&path, "id,diagnosis,scan_file\n42,normal,scan.png\n").unwrap();
+        let result = browse_dataset(path.to_string_lossy().into(), "CSV".into(), 10, 0, None, None,
+            Some("scan_file".into()), Some("diagnosis".into()), None, None, None).unwrap();
+        assert_eq!(result.total, 1);
+        assert_eq!(result.images[0].label, "normal");
+        assert!(result.images[0].path.ends_with("scan.png"));
+        std::fs::remove_file(path).unwrap();
     }
 }

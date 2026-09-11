@@ -1,3 +1,4 @@
+import { CsvColumnFields } from "./CsvColumnFields.jsx";
 import { invoke } from "@tauri-apps/api/core";
 import { useState, useRef, useEffect } from "preact/hooks";
 import { platform } from "../state/dashboard.js";
@@ -1502,9 +1503,9 @@ const STRUCTURE_PREVIEWS = {
       { name: "images/", indent: 1 },
       { name: "img_001.jpg", indent: 2, file: true },
     ],
-    note: "CSV columns: image_path, labels (pipe-separated)",
+    note: "CSV columns: image_path, cat, dog (one 0/1 column per label)",
     sample:
-      "images/img_001.jpg,beach|sunset|ocean\nimages/img_002.jpg,mountain|snow",
+      "image_path,cat,dog\nimages/img_001.jpg,1,0\nimages/img_002.jpg,0,1",
   },
   "Multi-Label Classification::JSONL": {
     label: "JSONL (Multi-Label)",
@@ -1787,6 +1788,7 @@ function StepDataset() {
     }
     const format = d.datasetFormat || "Folder";
     const sshCmd = d.connectionType === "remote" ? d.sshCommand : null;
+    let cancelled = false;
     invoke("browse_dataset", {
       path: path.trim(),
       format,
@@ -1794,11 +1796,14 @@ function StepDataset() {
       offset: 0,
       limit: 0,
       classFilter: null,
-      imageFolder: null,
+      imageFolder: d.imageFolderPath || null,
+      imageColumn: d.imageColumn?.trim() || null,
+      labelColumn: d.labelColumn?.trim() || null,
+      labelColumns: d.taskType === "Multi-Label Classification" ? (d.labelColumns || "").split(",").map((v) => v.trim()).filter(Boolean) : null,
       search: null,
       split: null,
     }).then((result) => {
-      if (result?.class_counts) {
+      if (!cancelled && result?.class_counts) {
         const names = Object.keys(result.class_counts).sort();
         wizardSetField("classNames", names);
         if (names.length >= 2 && !d.numClasses) {
@@ -1806,7 +1811,8 @@ function StepDataset() {
         }
       }
     }).catch(() => {});
-  }, [d.folderPath, d.trainPath, d.datasetFormat]);
+    return () => { cancelled = true; };
+  }, [d.folderPath, d.trainPath, d.datasetFormat, d.imageFolderPath, d.imageColumn, d.labelColumn, d.labelColumns]);
 
   const handleTrainPathInput = (e) => {
     wizardSetField("trainPath", e.target.value);
@@ -1899,6 +1905,7 @@ function StepDataset() {
           />
         </div>
       )}
+      <CsvColumnFields value={d} onChange={wizardSetField} />
       {isCsvOrJsonl && (
         <div class="wizard-file-paths-section">
           <p class="wizard-sub-label">Dataset File Paths</p>
@@ -1971,6 +1978,8 @@ function StepConfirm() {
       ? ["Folder Path", d.folderPath]
       : null,
     isCsvOrJsonl && d.imageFolderPath ? ["Image Folder", d.imageFolderPath] : null,
+    d.datasetFormat === "CSV" && d.imageColumn ? ["Image path column", d.imageColumn] : null,
+    d.datasetFormat === "CSV" && (d.labelColumns || d.labelColumn) ? ["Label column(s)", d.taskType === "Multi-Label Classification" ? d.labelColumns : d.labelColumn] : null,
     isCsvOrJsonl && d.trainPath ? ["Train Path", d.trainPath] : null,
     isCsvOrJsonl && d.valPath ? ["Val Path", d.valPath] : null,
     isCsvOrJsonl && d.testPath ? ["Test Path", d.testPath] : null,

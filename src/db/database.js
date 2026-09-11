@@ -1,7 +1,7 @@
 import { openDB, deleteDB } from "idb";
 
 const DB_NAME = "nightflow-db";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 // Initialize the database
 export async function initDB() {
@@ -22,7 +22,7 @@ export async function initDB() {
       }
 
       // v2: add compound index for efficient per-project queries sorted by time
-      if (oldVersion >= 1 && oldVersion < 2) {
+      if (oldVersion < 3) {
         const runStore = transaction.objectStore("runs");
         if (!runStore.indexNames.contains("projectId_created")) {
           runStore.createIndex("projectId_created", ["projectId", "created"], { unique: false });
@@ -153,21 +153,16 @@ export async function migrateProjectIds() {
     return tsA - tsB;
   });
 
-  let nextId = 1;
-  for (const project of sorted) {
+  // Preserve current IDs and migrate only legacy IDs above their maximum.
+  // Renumbering every entry in place can overwrite another project and its runs.
+  let nextId = Math.max(0, ...projects.map((p) => Number(p.id) || 0)) + 1;
+  for (const project of sorted.filter((p) => String(p.id).startsWith("proj-"))) {
     const oldId = project.id;
     const newId = String(nextId++);
-    if (oldId === newId) continue;
-
-    // Delete old project entry, insert with new id
     await projectStore.delete(oldId);
     await projectStore.put({ ...project, id: newId });
-
-    // Update all runs that reference this project
     const runs = await runStore.index("projectId").getAll(oldId);
-    for (const run of runs) {
-      await runStore.put({ ...run, projectId: newId });
-    }
+    for (const run of runs) await runStore.put({ ...run, projectId: newId });
   }
 
   await tx.done;

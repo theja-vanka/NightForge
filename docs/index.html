@@ -41,7 +41,7 @@
     "description": "A native, privacy-first desktop app for managing, running, and analyzing deep learning experiments.",
     "url": "https://theja-vanka.github.io/NightFlow/",
     "applicationCategory": "DeveloperApplication",
-    "operatingSystem": "macOS, Windows, Linux",
+    "operatingSystem": "macOS, Linux",
     "offers": {
       "@type": "Offer",
       "price": "0",
@@ -1020,7 +1020,7 @@
           </svg>
         </div>
         <h3>Cross-Platform</h3>
-        <p>Runs natively on macOS (Intel &amp; Apple Silicon), Windows 11+ (with Mica backdrop), and Linux.</p>
+        <p>Runs natively on macOS (Intel &amp; Apple Silicon) and Linux. Windows support is temporarily paused.</p>
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon blue">
@@ -1204,8 +1204,6 @@
       function platformInfo(name) {
         const n = name.toLowerCase();
         if (n.endsWith(".dmg")) return { os: "macos", label: "macOS", ext: ".dmg" };
-        if (n.endsWith(".exe")) return { os: "windows", label: "Windows", ext: ".exe" };
-        if (n.endsWith(".msi")) return { os: "windows", label: "Windows", ext: ".msi" };
         if (n.endsWith(".appimage")) return { os: "linux", label: "Linux", ext: ".AppImage" };
         if (n.endsWith(".deb")) return { os: "linux", label: "Linux", ext: ".deb" };
         return null;
@@ -1216,9 +1214,17 @@
       const heroVersionText = document.getElementById("hero-version");
 
       // Update hero button text based on detected OS
-      const osNames = { macos: "for macOS", windows: "for Windows 11+", linux: "for Linux" };
+      const osNames = { macos: "for macOS", linux: "for Linux" };
       if (userOS && osNames[userOS] && heroDownloadText) {
         heroDownloadText.textContent = "Download " + osNames[userOS];
+      }
+
+      if (userOS === "windows") {
+        if (heroDownloadText) heroDownloadText.textContent = "Available for macOS and Linux";
+        if (heroDownloadBtn) {
+          heroDownloadBtn.href = "getting-started.html#installation";
+          heroDownloadBtn.title = "Windows support is temporarily paused";
+        }
       }
 
       // Fetch latest release and link hero button
@@ -1229,7 +1235,7 @@
           if (heroVersionText) {
             heroVersionText.textContent = `Version ${latest.tag_name}`;
           }
-          const byOS = { macos: [], windows: [], linux: [] };
+          const byOS = { macos: [], linux: [] };
           latest.assets.forEach(a => {
             const info = platformInfo(a.name);
             if (info) byOS[info.os].push({ ...info, url: a.browser_download_url, size: a.size, filename: a.name });

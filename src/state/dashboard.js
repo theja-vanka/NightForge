@@ -812,6 +812,7 @@ export async function syncConfig(
   } catch (err) {
     addSyncLog(projectId, `Failed to write config.yaml: ${err}`, "warning");
     console.warn("[syncConfig] write error:", err);
+    throw err;
   }
 }
 
