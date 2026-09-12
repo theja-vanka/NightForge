@@ -328,7 +328,7 @@ const defaultData = {
   compileModel: false,
 };
 
-export const STEP_COUNT = 6;
+export const STEP_COUNT = 7;
 
 export const wizardOpen = signal(false);
 export const wizardStep = signal(0);
@@ -346,6 +346,7 @@ export const STEP_LABELS = [
   "Task",
   "Backbone",
   "Dataset",
+  "Advanced",
   "Confirm",
 ];
 
@@ -379,7 +380,9 @@ export const wizardCanProceed = computed(() => {
     // require folder path (no external validation enforced here)
     return hasClasses && d.folderPath.trim().length > 0;
   }
+  // Step 5 (Advanced Settings) is optional — always safe to proceed.
   if (step === 5) return true;
+  if (step === 6) return true;
   return false;
 });
 
@@ -463,22 +466,26 @@ export async function wizardCreate() {
     labelColumns: d.labelColumns.trim(),
     numClasses: d.numClasses !== "" ? d.numClasses : "",
     classNames: Array.isArray(d.classNames) ? d.classNames : [],
-    powerUserMode: false,
-    maxEpochs: 10,
-    learningRate: "",
-    batchSize: "",
-    optimizer: "",
-    scheduler: "",
-    weightDecay: "",
-    precision: "",
-    gradientClipVal: "",
-    imageSize: "",
-    augmentationPreset: "",
-    freezeBackbone: false,
-    seed: 42,
-    earlyStopping: true,
-    earlyStoppingPatience: "",
-    earlyStoppingMonitor: "val/loss",
+    powerUserMode: d.powerUserMode,
+    maxEpochs: d.maxEpochs !== "" ? d.maxEpochs : 10,
+    learningRate: d.learningRate,
+    batchSize: d.batchSize,
+    optimizer: d.optimizer,
+    scheduler: d.scheduler,
+    weightDecay: d.weightDecay,
+    precision: d.precision,
+    gradientClipVal: d.gradientClipVal,
+    imageSize: d.imageSize,
+    augmentationPreset: d.augmentationPreset,
+    freezeBackbone: d.freezeBackbone,
+    seed: d.seed !== "" ? d.seed : 42,
+    earlyStopping: d.earlyStopping,
+    earlyStoppingPatience: d.earlyStoppingPatience,
+    earlyStoppingMonitor: d.earlyStoppingMonitor,
+    gpuDevices: d.gpuDevices,
+    accelerator: d.accelerator,
+    numWorkers: d.numWorkers,
+    compileModel: d.compileModel,
   };
   await addProject(project);
   closeWizard();

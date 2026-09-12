@@ -174,7 +174,11 @@ export const wizardStepTips = [
     body: "Tell NightFlow where your data lives and how it's organized. Choose a format (Folder, COCO, CSV, etc.), point to the dataset path, and specify the number of classes.",
   },
   {
-    title: "Step 6: Confirm",
+    title: "Step 6: Advanced Settings",
+    body: "Optional. Turn on Power User Mode to fine-tune training hyperparameters like epochs, learning rate, batch size, and early stopping. Skip this step to use recommended defaults.",
+  },
+  {
+    title: "Step 7: Confirm",
     body: "Review your project configuration. If everything looks good, click Create to set up the project. You can always change settings later from the Dashboard.",
   },
 ];

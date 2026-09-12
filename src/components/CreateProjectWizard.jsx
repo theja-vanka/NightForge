@@ -1954,7 +1954,151 @@ function StepDataset() {
   );
 }
 
-// ── Step 5: Confirm ──
+// ── Step 5.5: Advanced Settings ──
+
+function StepAdvanced() {
+  const d = wizardData.value;
+
+  const numField = (field) => (e) =>
+    wizardSetField(field, e.target.value === "" ? "" : Number(e.target.value));
+
+  return (
+    <div>
+      <p class="wizard-step-title">Advanced Settings</p>
+      <p class="wizard-step-desc">
+        Optional. Turn on Power User Mode to fine-tune training behavior — otherwise NightFlow uses recommended defaults.
+      </p>
+      <div class="settings-card">
+        <div class="settings-card-row settings-row-between">
+          <div>
+            <div class="settings-label">Power User Mode</div>
+            <div class="settings-desc">Enable advanced training controls for this project</div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={d.powerUserMode}
+            class={`settings-switch${d.powerUserMode ? " on" : ""}`}
+            onClick={() => wizardSetField("powerUserMode", !d.powerUserMode)}
+          >
+            <span class="settings-switch-thumb" />
+          </button>
+        </div>
+        {d.powerUserMode && (
+          <>
+            <div class="settings-card-divider" />
+            <div class="settings-card-row settings-row-grid">
+              <label class="settings-field">
+                <span class="settings-label">Max Epochs</span>
+                <span class="settings-hint">Number of training epochs</span>
+                <input
+                  class="settings-input"
+                  type="number"
+                  min="1"
+                  value={d.maxEpochs}
+                  onInput={numField("maxEpochs")}
+                />
+              </label>
+              <label class="settings-field">
+                <span class="settings-label">Learning Rate</span>
+                <span class="settings-hint">Leave empty for AutoTimm default</span>
+                <input
+                  class="settings-input"
+                  type="number"
+                  step="any"
+                  placeholder="auto"
+                  value={d.learningRate}
+                  onInput={numField("learningRate")}
+                />
+              </label>
+            </div>
+            <div class="settings-card-divider" />
+            <div class="settings-card-row settings-row-grid">
+              <label class="settings-field">
+                <span class="settings-label">Batch Size</span>
+                <span class="settings-hint">Samples per training step</span>
+                <input
+                  class="settings-input"
+                  type="number"
+                  min="1"
+                  placeholder="auto"
+                  value={d.batchSize}
+                  onInput={numField("batchSize")}
+                />
+              </label>
+              <label class="settings-field">
+                <span class="settings-label">Optimizer</span>
+                <span class="settings-hint">Optimization algorithm</span>
+                <div class="settings-select-wrap">
+                  <select
+                    class="settings-select"
+                    value={d.optimizer}
+                    onChange={(e) => wizardSetField("optimizer", e.target.value)}
+                  >
+                    <option value="">Auto (default)</option>
+                    <option value="adamw">AdamW</option>
+                    <option value="adam">Adam</option>
+                    <option value="sgd">SGD</option>
+                  </select>
+                  <span class="settings-select-chevron" />
+                </div>
+              </label>
+            </div>
+            <div class="settings-card-divider" />
+            <div class="settings-card-row settings-row-between">
+              <div>
+                <div class="settings-label">Early Stopping</div>
+                <div class="settings-desc">Halt training after patience epochs with no improvement</div>
+              </div>
+              <button
+                class="settings-theme-btn"
+                onClick={() => wizardSetField("earlyStopping", !d.earlyStopping)}
+              >
+                {d.earlyStopping ? "On" : "Off"}
+              </button>
+            </div>
+            {d.earlyStopping && (
+              <>
+                <div class="settings-card-divider" />
+                <div class="settings-card-row settings-row-grid">
+                  <label class="settings-field">
+                    <span class="settings-label">Monitor Metric</span>
+                    <span class="settings-hint">Metric to watch for improvement</span>
+                    <div class="settings-select-wrap">
+                      <select
+                        class="settings-select"
+                        value={d.earlyStoppingMonitor}
+                        onChange={(e) => wizardSetField("earlyStoppingMonitor", e.target.value)}
+                      >
+                        <option value="val/loss">Validation Loss</option>
+                        <option value="val/accuracy">Validation Accuracy</option>
+                      </select>
+                      <span class="settings-select-chevron" />
+                    </div>
+                  </label>
+                  <label class="settings-field">
+                    <span class="settings-label">Patience</span>
+                    <span class="settings-hint">Epochs to wait before stopping (default 10)</span>
+                    <input
+                      class="settings-input"
+                      type="number"
+                      min="1"
+                      placeholder="10"
+                      value={d.earlyStoppingPatience}
+                      onInput={numField("earlyStoppingPatience")}
+                    />
+                  </label>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Step 6: Confirm ──
 
 function StepConfirm() {
   const d = wizardData.value;
@@ -1983,6 +2127,14 @@ function StepConfirm() {
     isCsvOrJsonl && d.trainPath ? ["Train Path", d.trainPath] : null,
     isCsvOrJsonl && d.valPath ? ["Val Path", d.valPath] : null,
     isCsvOrJsonl && d.testPath ? ["Test Path", d.testPath] : null,
+    d.powerUserMode ? ["Power User Mode", "On"] : null,
+    d.powerUserMode ? ["Max Epochs", d.maxEpochs || 10] : null,
+    d.powerUserMode && d.learningRate !== "" ? ["Learning Rate", d.learningRate] : null,
+    d.powerUserMode && d.batchSize !== "" ? ["Batch Size", d.batchSize] : null,
+    d.powerUserMode && d.optimizer ? ["Optimizer", d.optimizer] : null,
+    d.powerUserMode
+      ? ["Early Stopping", d.earlyStopping ? `On (patience ${d.earlyStoppingPatience || 10})` : "Off"]
+      : null,
   ].filter(Boolean);
 
   return (
@@ -2011,6 +2163,7 @@ const steps = [
   StepTaskType,
   StepModelCategory,
   StepDataset,
+  StepAdvanced,
   StepConfirm,
 ];
 

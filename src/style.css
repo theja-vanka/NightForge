@@ -115,6 +115,19 @@
   box-sizing: border-box;
 }
 
+/* Strip the native number-input spinner everywhere — its boxy, high-contrast
+   OS chrome clashes with our rounded, monochrome inputs. Typing and the
+   arrow keys still work; this only removes the stepper widget. */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 body {
   margin: 0;
   background: var(--bg-primary);
@@ -2051,6 +2064,47 @@ textarea {
   color: var(--text-muted);
 }
 
+/* — Toggle switch — */
+
+.settings-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: none;
+  padding: 0;
+  background: var(--toggle-bg);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.settings-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.settings-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--toggle-knob);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.settings-switch.on {
+  background: var(--accent);
+}
+
+.settings-switch.on .settings-switch-thumb {
+  transform: translateX(16px);
+  background: var(--bg-primary);
+}
+
 /* — Danger zone — */
 
 .settings-danger {
@@ -3919,7 +3973,7 @@ select.wizard-input {
 }
 
 .wizard-file-paths-section .wizard-sub-label {
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .wizard-file-path-group {
