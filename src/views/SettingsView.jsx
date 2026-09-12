@@ -105,6 +105,8 @@ const moonIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" st
 const trashIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
 const checkIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 const lockIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+// Same glyph the Interpretation view uses for its drop zone.
+const imageIcon = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
 
 function ClearAllDataRow() {
   const [showDialog, setShowDialog] = useState(false);
@@ -271,6 +273,42 @@ export function SettingsView() {
   const [augPreviewLoading, setAugPreviewLoading] = useState(false);
   const [augPreviewError, setAugPreviewError] = useState(null);
   const [augSourceImage, setAugSourceImage] = useState(null);
+  const [augDragging, setAugDragging] = useState(false);
+
+  /** Shared by the file picker and the drop target. */
+  const runAugPreview = (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = String(reader.result).split(",")[1];
+      setAugSourceImage(b64);
+      setAugPreviewLoading(true);
+      setAugPreviewError(null);
+      setAugPreviewImages([]);
+      invoke("preview_augmentation", {
+        projectPath: proj.projectPath,
+        imageBase64: b64,
+        preset: draft.augmentationPreset || "default",
+        sshCommand: proj.connectionType === "remote" ? proj.sshCommand : null,
+      })
+        // The command resolves to the array of base64 images itself.
+        .then((images) => setAugPreviewImages(images || []))
+        .catch((err) => {
+          setAugPreviewImages([]);
+          setAugPreviewError(
+            typeof err === "string" ? err : err?.message || "Preview failed",
+          );
+        })
+        .finally(() => setAugPreviewLoading(false));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const resetAugPreview = () => {
+    setAugSourceImage(null);
+    setAugPreviewImages([]);
+    setAugPreviewError(null);
+  };
 
   // Re-sync draft when switching projects
   useEffect(() => {
@@ -1396,82 +1434,103 @@ export function SettingsView() {
 
       {augPreviewOpen && (
         <div class="modal-overlay" onClick={() => setAugPreviewOpen(false)}>
-          <div class="modal" onClick={(e) => e.stopPropagation()} style="max-width:640px">
+          <div class="modal-dialog aug-preview-modal" onClick={(e) => e.stopPropagation()}>
             <div class="modal-header">
-              <h3>Augmentation Preview</h3>
-              <button class="modal-close" onClick={() => setAugPreviewOpen(false)}>&times;</button>
+              <h3 class="modal-title">Augmentation Preview</h3>
+              <button
+                class="modal-close-btn"
+                onClick={() => setAugPreviewOpen(false)}
+                aria-label="Close"
+              >
+                &times;
+              </button>
             </div>
             <div class="modal-body">
-              <p class="settings-hint" style="margin-bottom:12px">
-                Preset: <strong>{draft.augmentationPreset || "Auto (default)"}</strong>
-              </p>
+              <div class="aug-preview-meta">
+                <span class="aug-preview-preset-label">Preset</span>
+                <span class="aug-preview-preset">
+                  {draft.augmentationPreset || "Auto (default)"}
+                </span>
+              </div>
+
               {!augSourceImage ? (
-                <label class="aug-preview-upload">
+                <label
+                  class={`aug-preview-upload${augDragging ? " dragging" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setAugDragging(true);
+                  }}
+                  onDragLeave={() => setAugDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setAugDragging(false);
+                    runAugPreview(e.dataTransfer?.files?.[0]);
+                  }}
+                >
                   <input
                     type="file"
                     accept="image/*"
                     style="display:none"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        const b64 = reader.result.split(",")[1];
-                        setAugSourceImage(b64);
-                        setAugPreviewLoading(true);
-                        setAugPreviewError(null);
-                        invoke("preview_augmentation", {
-                          projectPath: proj.projectPath,
-                          imageBase64: b64,
-                          preset: draft.augmentationPreset || "default",
-                          sshCommand:
-                            proj.connectionType === "remote" ? proj.sshCommand : null,
-                        })
-                          // The command resolves to the array of base64 images itself.
-                          .then((images) => setAugPreviewImages(images || []))
-                          .catch((err) => {
-                            setAugPreviewImages([]);
-                            setAugPreviewError(
-                              typeof err === "string" ? err : err?.message || "Preview failed",
-                            );
-                          })
-                          .finally(() => setAugPreviewLoading(false));
-                      };
-                      reader.readAsDataURL(file);
-                    }}
+                    onChange={(e) => runAugPreview(e.target.files?.[0])}
                   />
-                  Click to upload a sample image
+                  <span
+                    class="aug-preview-upload-icon"
+                    dangerouslySetInnerHTML={{ __html: imageIcon }}
+                  />
+                  <span class="aug-preview-upload-title">
+                    Drop an image here or click to browse
+                  </span>
+                  <span class="aug-preview-upload-hint">Supports PNG, JPG, WEBP</span>
                 </label>
               ) : (
                 <>
-                  <button
-                    class="settings-action-btn"
-                    style="margin-bottom:12px"
-                    onClick={() => {
-                      setAugSourceImage(null);
-                      setAugPreviewImages([]);
-                      setAugPreviewError(null);
-                    }}
-                  >
-                    Choose different image
-                  </button>
+                  <div class="aug-preview-source">
+                    <img
+                      class="aug-preview-source-img"
+                      src={`data:image/png;base64,${augSourceImage}`}
+                      alt="Source"
+                    />
+                    <div class="aug-preview-source-meta">
+                      <span class="aug-preview-source-label">Source image</span>
+                      <span class="settings-hint">
+                        {augPreviewImages.length > 0
+                          ? `${augPreviewImages.length} variants generated`
+                          : "Each variant re-samples the preset's random transforms."}
+                      </span>
+                    </div>
+                    <button class="settings-action-btn" onClick={resetAugPreview}>
+                      Choose different
+                    </button>
+                  </div>
+
                   {augPreviewLoading ? (
-                    <p class="settings-hint">Generating augmented images...</p>
+                    // Indeterminate on purpose: the backend returns all variants
+                    // in one shot, so there is no real progress to report.
+                    <div class="aug-preview-loading">
+                      <div class="aug-preview-progress">
+                        <div class="aug-preview-progress-bar" />
+                      </div>
+                      <span class="settings-hint">Generating augmented images…</span>
+                    </div>
                   ) : augPreviewError ? (
                     <p class="settings-hint settings-hint-error">{augPreviewError}</p>
                   ) : augPreviewImages.length > 0 ? (
                     <div class="aug-preview-grid">
                       {augPreviewImages.map((img, i) => (
-                        <img
-                          key={i}
-                          class="aug-preview-img"
-                          src={`data:image/png;base64,${img}`}
-                          alt={`Augmented ${i + 1}`}
-                        />
+                        <figure key={i} class="aug-preview-cell">
+                          <img
+                            class="aug-preview-img"
+                            src={`data:image/png;base64,${img}`}
+                            alt={`Augmented variant ${i + 1}`}
+                          />
+                          <figcaption class="aug-preview-cell-index">{i + 1}</figcaption>
+                        </figure>
                       ))}
                     </div>
                   ) : (
-                    <p class="settings-hint">No augmented images generated. Ensure the project environment is set up.</p>
+                    <p class="settings-hint">
+                      No augmented images generated. Ensure the project environment is set up.
+                    </p>
                   )}
                 </>
               )}
