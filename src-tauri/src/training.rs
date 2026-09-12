@@ -830,38 +830,6 @@ pub fn check_training_session(project_path: String) -> OrphanedSession {
 }
 
 #[command]
-pub async fn replay_training_log(
-    app: tauri::AppHandle,
-    session_id: String,
-    log_file: String,
-    after_timestamp: f64,
-) -> Result<u32, String> {
-    let expanded = expand_tilde(&log_file);
-    let content = std::fs::read_to_string(&expanded)
-        .map_err(|e| format!("Failed to read log file: {}", e))?;
-    let mut replayed = 0u32;
-    for line in content.lines() {
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
-            let ts = json
-                .get("timestamp")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0);
-            if ts > after_timestamp {
-                let _ = app.emit(
-                    "training-event",
-                    TrainingEvent {
-                        session_id: session_id.clone(),
-                        data: json,
-                    },
-                );
-                replayed += 1;
-            }
-        }
-    }
-    Ok(replayed)
-}
-
-#[command]
 pub fn read_training_log(log_file: String) -> Result<Vec<serde_json::Value>, String> {
     let expanded = expand_tilde(&log_file);
     let content = std::fs::read_to_string(&expanded)

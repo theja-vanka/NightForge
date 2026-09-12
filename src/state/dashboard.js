@@ -7,7 +7,7 @@ import {
   allRuns,
   loadRunScalars,
 } from "./experiments.js";
-import { currentProject, currentProjectId } from "./projects.js";
+import { currentProject, currentProjectId, projectList } from "./projects.js";
 import { navigate, currentPage } from "./router.js";
 import { saveSyncMetadata, getSyncMetadata } from "../db/database.js";
 import { buildConfigYaml } from "../utils/configBuilder.js";
@@ -82,6 +82,24 @@ export const envInfo = computed(
 export const syncLogs = computed(
   () => _getState(currentProjectId.value).syncLogs,
 );
+
+// ── View availability ─────────────────────────────────────────────────────────
+
+/** Views that stay reachable regardless of connection state. */
+const ALWAYS_AVAILABLE_PAGES = ["dashboard", "settings"];
+
+/**
+ * Single source of truth for which views are reachable right now: everything
+ * except the dashboard and settings needs a live connection and a completed
+ * sync before it has anything to show. The Sidebar uses this to decide what to
+ * render and the global keyboard shortcuts use it to decide where they may
+ * navigate, so the two cannot drift apart.
+ */
+export function isPageAvailable(page) {
+  if (ALWAYS_AVAILABLE_PAGES.includes(page)) return true;
+  if (!sshConnected.value) return false;
+  return dashboardSynced.value;
+}
 
 // ── GPU availability (updated from system metrics polling) ──────────────────
 
@@ -182,8 +200,11 @@ export const stats = computed(() => {
   const running = r.filter((x) => x.status === "running");
   const failed = r.filter((x) => x.status === "failed");
   const queued = r.filter((x) => x.status === "queued");
-  const bestAcc = completed.length
-    ? Math.max(...completed.map((x) => x.bestAcc ?? 0))
+  // Only consider runs that actually recorded an accuracy — coercing a missing
+  // value to 0 would render as a real-looking "0.0%" instead of "—".
+  const runsWithAcc = completed.filter((x) => x.bestAcc != null);
+  const bestAcc = runsWithAcc.length
+    ? Math.max(...runsWithAcc.map((x) => x.bestAcc))
     : null;
 
   // Best test accuracy across all runs that have test results
@@ -211,7 +232,14 @@ export function setSshConnected(connected, projectId = currentProjectId.value) {
   // Only reset synced when transitioning to a NEW connection (was not connected before).
   // If we're re-setting connected=true on an already-connected project (e.g. from
   // useTerminal._initSession), preserve the synced state to avoid sidebar collapse.
-  const shouldResetSynced = connected ? !current.connected : true;
+  //
+  // A remote box may have changed between launches, so a fresh SSH connection
+  // always re-syncs. A localhost project is the same machine we just restored
+  // the sync metadata from, so keep it and skip the pointless re-sync.
+  const isLocal =
+    (projectList.value.find((p) => p.id === projectId)?.connectionType ??
+      "localhost") !== "remote";
+  const shouldResetSynced = connected ? !current.connected && !isLocal : true;
   _setState(projectId, {
     connected,
     connectedAt: connected ? new Date().toISOString() : null,

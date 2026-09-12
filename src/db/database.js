@@ -21,7 +21,7 @@ export async function initDB() {
         runStore.createIndex("created", "created", { unique: false });
       }
 
-      // v2: add compound index for efficient per-project queries sorted by time
+      // v3: add compound index for efficient per-project queries sorted by time
       if (oldVersion < 3) {
         const runStore = transaction.objectStore("runs");
         if (!runStore.indexNames.contains("projectId_created")) {

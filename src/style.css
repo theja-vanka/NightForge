@@ -1932,6 +1932,10 @@ textarea {
   color: var(--text-muted);
 }
 
+.settings-hint-error {
+  color: #e55555;
+}
+
 .settings-desc {
   font-size: 0.73rem;
   color: var(--text-muted);
@@ -2600,7 +2604,6 @@ textarea {
   flex: 1;
   min-height: 0;
 }
-
 
 .dashboard-sync-screen {
   display: flex;
@@ -3546,12 +3549,6 @@ textarea {
   letter-spacing: -0.02em;
 }
 
-.wizard-options-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-}
-
 .wizard-options-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -3588,31 +3585,6 @@ textarea {
   font-size: 0.72rem;
 }
 
-.wizard-option-wide {
-  padding: 8px 12px;
-  font-size: 0.72rem;
-  font-family: var(--font-mono, monospace);
-  text-align: left;
-}
-
-.wizard-options-scroll {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
-  max-height: 180px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.wizard-options-scroll::-webkit-scrollbar {
-  width: 4px;
-}
-
-.wizard-options-scroll::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 2px;
-}
-
 .wizard-sub-section {
   margin-top: 14px;
 }
@@ -3624,44 +3596,6 @@ textarea {
   margin: 0 0 6px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-}
-
-.wizard-dataset-list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.wizard-dataset-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1.5px solid var(--border-color);
-  background: var(--bg-surface);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.2s ease;
-}
-
-.wizard-dataset-item:hover {
-  border-color: var(--text-secondary);
-}
-
-.wizard-dataset-item.selected {
-  border-color: var(--accent);
-}
-
-.wizard-dataset-name {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.wizard-dataset-desc {
-  font-size: 0.68rem;
-  color: var(--text-muted);
 }
 
 .wizard-dataset-layout {
@@ -3772,65 +3706,16 @@ textarea {
   font-style: italic;
 }
 
-.wizard-fields-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-}
-
-.wizard-fields-row {
-  display: flex;
-  gap: 10px;
-}
-
-.wizard-fields-row .wizard-field {
-  flex: 1;
-}
-
-.wizard-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.wizard-field-label {
-  font-size: 0.68rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.wizard-input-sm {
-  padding: 7px 10px;
-  font-size: 0.78rem;
-}
-
 select.wizard-input {
-  appearance: auto;
+  /* Keep selects consistent with .settings-select rather than falling back to
+     the native control; pair with a .settings-select-chevron when used. */
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 32px;
   cursor: pointer;
-}
-
-.wizard-toggles {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.wizard-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.wizard-toggle input[type="checkbox"] {
-  accent-color: var(--accent);
-  width: 14px;
-  height: 14px;
-  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%23737373' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
 }
 
 .wizard-ssh-input-section {
@@ -3918,45 +3803,6 @@ select.wizard-input {
   margin-bottom: 8px;
 }
 
-.wizard-path-input-wrap {
-  display: flex;
-  align-items: center;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-input);
-  overflow: hidden;
-  transition: border-color 0.2s ease;
-}
-
-.wizard-path-input-wrap:focus-within {
-  border-color: var(--border-focus);
-}
-
-.wizard-path-prefix {
-  padding: 10px 0 10px 14px;
-  color: var(--text-muted);
-  font-family: var(--font-mono, monospace);
-  font-size: 0.8rem;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-  user-select: none;
-}
-
-.wizard-path-folder-input {
-  flex: 1;
-  min-width: 0;
-  padding: 10px 14px 10px 0;
-  border: none;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 0.8rem;
-  outline: none;
-}
-
-.wizard-path-folder-input::placeholder {
-  color: var(--text-muted);
-}
-
 .wizard-folder-path-section {
   margin-top: 20px;
 }
@@ -3997,13 +3843,6 @@ select.wizard-input {
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 400;
-}
-
-.wizard-validation-error {
-  margin-top: 6px;
-  font-size: 0.78rem;
-  color: #e55555;
-  font-weight: 500;
 }
 
 /* ── Wizard Tutorial Tip ── */
@@ -4166,14 +4005,6 @@ select.wizard-input {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   padding: 2px 8px;
   border-radius: 8px;
-  margin-top: 2px;
-}
-
-.wizard-category-models {
-  font-size: 0.68rem;
-  font-family: var(--font-mono, monospace);
-  color: var(--text-secondary);
-  opacity: 0.7;
   margin-top: 2px;
 }
 
@@ -4577,26 +4408,27 @@ select.wizard-input {
 }
 
 .interp-select {
-  padding: 8px 12px;
+  padding: 8px 32px 8px 12px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
   background: var(--bg-input);
   color: var(--text-primary);
   font-size: 0.85rem;
+  font-family: inherit;
   cursor: pointer;
   min-width: 220px;
-  appearance: auto;
+  /* Match .filter-select / .settings-select: the native control clashes with
+     the monochrome inputs, so draw our own chevron instead. */
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%23737373' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
 }
 
 .interp-select:focus {
   outline: none;
   border-color: var(--border-focus);
-}
-
-.interp-methods {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
 }
 
 .interp-method {
@@ -4704,46 +4536,11 @@ select.wizard-input {
   max-height: 280px;
 }
 
-.interp-heatmap {
-  position: absolute;
-  inset: 0;
-  mix-blend-mode: multiply;
-  pointer-events: none;
-}
-
 .interp-panel-desc {
   padding: 6px 12px;
   font-size: 0.7rem;
   color: var(--text-muted);
   border-top: 1px solid var(--border-color);
-}
-
-.interp-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-}
-
-.interp-info-label {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.interp-info-desc {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-
-.interp-info-file {
-  margin-left: auto;
-  font-size: 0.72rem;
-  font-family: var(--font-mono, monospace);
-  color: var(--text-secondary);
 }
 
 .interp-clear-btn {
@@ -5000,11 +4797,6 @@ select.wizard-input {
   background: #22c55e0a;
 }
 
-.training-panel--reconnected {
-  border-color: #f59e0b40;
-  background: #f59e0b0a;
-}
-
 .training-panel-header {
   display: flex;
   align-items: center;
@@ -5026,11 +4818,6 @@ select.wizard-input {
   border-radius: 50%;
   flex-shrink: 0;
   animation: ssh-spin 0.8s linear infinite;
-}
-
-.training-panel-spinner--reconnected {
-  border-color: #f59e0b30;
-  border-top-color: #f59e0b;
 }
 
 .training-panel-title {
@@ -5056,11 +4843,6 @@ select.wizard-input {
 .training-panel--done .training-status-label {
   color: #22c55e;
   background: #22c55e15;
-}
-
-.training-panel--reconnected .training-status-label {
-  color: #f59e0b;
-  background: #f59e0b15;
 }
 
 .training-panel-actions {
@@ -5179,29 +4961,6 @@ select.wizard-input {
   font-weight: 500;
 }
 
-/* ── Test evaluation section ─────────────────────────────────────────── */
-
-.training-test-section {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--border-primary);
-}
-
-.training-test-header {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 10px;
-  color: #a78bfa;
-}
-
-.training-test-title {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #a78bfa;
-  letter-spacing: 0.01em;
-}
-
 .training-test-badge {
   font-size: 0.66rem;
   font-weight: 600;
@@ -5220,72 +4979,6 @@ select.wizard-input {
   font-family: "SF Mono", "Fira Code", monospace;
   font-variant-numeric: tabular-nums;
   margin-left: auto;
-}
-
-.training-test-track {
-  width: 100%;
-  height: 4px;
-  background: var(--bg-primary);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-bottom: 10px;
-}
-
-.training-test-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #a78bfa, #818cf8);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-
-.training-test-section--done .training-test-fill {
-  background: #22c55e;
-}
-
-.training-test-stats {
-  flex-wrap: wrap;
-  gap: 14px 20px;
-}
-
-.training-download-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 12px 0;
-}
-
-.training-download-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.training-download-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--bg-input);
-}
-
-.training-download-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.training-download-msg {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-}
-
-.training-download-msg--error {
-  color: #ef4444;
 }
 
 .download-spinner {
@@ -5712,10 +5405,6 @@ select.wizard-input {
   white-space: nowrap;
 }
 
-.run-detail-header .training-download-row {
-  margin: 0;
-}
-
 /* Tags & Notes area between header and meta */
 .run-detail-view>.tag-chips {
   margin-bottom: 10px;
@@ -5916,8 +5605,7 @@ select.wizard-input {
 }
 
 /* Shared card style for sidebar sections */
-.run-detail-hparams,
-.model-info-section {
+.run-detail-hparams{
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: 10px;
@@ -6860,18 +6548,6 @@ select.wizard-input {
   border-bottom-color: var(--accent, #6c8cff);
 }
 
-.dataset-browser-stats {
-  font-size: 11.5px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  margin-left: auto;
-  padding: 3px 10px;
-  border-radius: 20px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  letter-spacing: 0.01em;
-}
-
 .dataset-browser-body {
   flex: 1;
   display: flex;
@@ -6938,10 +6614,6 @@ select.wizard-input {
   font-weight: 600;
   color: var(--text-primary);
   font-family: "SF Mono", "Fira Code", monospace;
-}
-
-.dataset-sidebar-meta-row.active-filter .dataset-sidebar-meta-value {
-  color: var(--chart-line-1);
 }
 
 /* Columns 2-3 — image grid main area */
@@ -7485,62 +7157,6 @@ select.wizard-input {
   color: var(--text-secondary);
 }
 
-.ssh-key-test-btn {
-  padding: 4px 10px;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  background: none;
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.ssh-key-test-btn:hover {
-  border-color: var(--text-muted);
-  color: var(--text-primary);
-}
-
-/* ========================================
-   Model Info Section
-   ======================================== */
-
-.model-info-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.model-info-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 7px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
-}
-
-.model-info-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.model-info-item:first-child {
-  padding-top: 0;
-}
-
-.model-info-key {
-  font-size: 11.5px;
-  color: var(--text-muted);
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-.model-info-val {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary);
-  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
-}
-
 /* ========================================
    Inference Drawer (slide-over)
    ======================================== */
@@ -7982,16 +7598,6 @@ select.wizard-input {
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 16px 20px;
-}
-
-.inference-params-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 12px 0;
 }
 
 .inference-params-grid {

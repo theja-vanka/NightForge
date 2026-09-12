@@ -676,6 +676,20 @@ function StartTrainingButton() {
     } catch (error) { alert(`Could not start training: ${error.message || error}`); }
   };
 
+  // Ctrl/Cmd+Enter starts training, as advertised in the shortcuts modal. It
+  // lives here so it inherits the button's own guards rather than duplicating
+  // them: this only mounts on a synced dashboard with a project selected.
+  useEffect(() => {
+    if (active || datasetInvalid) return;
+    function onKey(e) {
+      if (e.key !== "Enter" || !(e.metaKey || e.ctrlKey)) return;
+      e.preventDefault();
+      handleTrainClick();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, datasetInvalid, project?.id, command]);
+
   const handleTestClick = async () => {
     // Find the latest completed run to use its checkpoint
     const completed = projectRuns.value

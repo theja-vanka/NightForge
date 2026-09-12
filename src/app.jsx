@@ -2,6 +2,7 @@ import { useEffect } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { invoke } from "@tauri-apps/api/core";
 import { currentPage, navigate } from "./state/router.js";
+import { isPageAvailable } from "./state/dashboard.js";
 import { projectList, loadProjects } from "./state/projects.js";
 import { loadRuns } from "./state/experiments.js";
 import { Sidebar } from "./components/Sidebar.jsx";
@@ -94,30 +95,42 @@ export function App() {
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
 
-      // Skip when focus is in input/textarea
       const tag = e.target.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const editable =
+        tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 
       if (e.key === "k" || e.key === "K") {
+        // Ctrl+K is readline's kill-line, and the terminal keeps a hidden
+        // textarea focused — leave that binding to the shell. Cmd+K is free.
+        if (editable && !e.metaKey) return;
         e.preventDefault();
         shortcutsOpen.value = !shortcutsOpen.value;
         return;
       }
 
       if (NAV_MAP[e.key]) {
+        // Deliberately not gated on `editable`: a modifier plus a digit never
+        // types anything, and the terminal's hidden textarea would otherwise
+        // swallow these and trap the user in the terminal view.
+        // Respect the same availability rule the sidebar uses, so a shortcut
+        // can't land on a view that isn't reachable yet.
+        if (!isPageAvailable(NAV_MAP[e.key])) return;
         e.preventDefault();
         navigate(NAV_MAP[e.key]);
         return;
       }
     }
 
-    document.addEventListener("keydown", handleKeyDown);
+    // Capture phase: xterm.js consumes some of these (Ctrl+7 is the control
+    // character 0x1F) and calls stopPropagation on its hidden textarea, which
+    // would otherwise stop a bubbling listener from ever seeing them.
+    document.addEventListener("keydown", handleKeyDown, true);
 
     return () => {
       clearTimeout(timer);
       cleanupTrainingListeners();
       stopUpdateChecker();
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
     };
   }, []);
 

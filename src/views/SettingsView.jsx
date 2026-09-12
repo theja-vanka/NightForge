@@ -69,6 +69,9 @@ const EDITABLE_KEYS = [
 // Read-only fields that need to be included in draft for rendering
 const READONLY_KEYS = ["taskType"];
 
+/** Tasks whose CSV datasets carry a mask column alongside the image column. */
+const SEGMENTATION_TASKS = ["Semantic Segmentation", "Instance Segmentation"];
+
 function pick(obj) {
   const out = {};
   // Include editable fields
@@ -266,6 +269,7 @@ export function SettingsView() {
   const [augPreviewOpen, setAugPreviewOpen] = useState(false);
   const [augPreviewImages, setAugPreviewImages] = useState([]);
   const [augPreviewLoading, setAugPreviewLoading] = useState(false);
+  const [augPreviewError, setAugPreviewError] = useState(null);
   const [augSourceImage, setAugSourceImage] = useState(null);
 
   // Re-sync draft when switching projects
@@ -726,6 +730,30 @@ export function SettingsView() {
                 )}
 
               {draft.datasetFormat === "CSV" && <div class="settings-card-row"><CsvColumnFields value={draft} onChange={set} disabled={locked} /></div>}
+
+              {(draft.datasetFormat === "CSV" || draft.datasetFormat === "JSONL") && (
+                <>
+                  <div class="settings-card-divider" />
+                  <div class="settings-card-row">
+                    <label class="settings-field">
+                      {/* Semantic segmentation resolves this as AutoTimm's data_dir and
+                          instance segmentation as its image_dir; both resolve mask paths
+                          alongside images, while the other tasks have no mask column. */}
+                      <span class="settings-label">
+                        {SEGMENTATION_TASKS.includes(draft.taskType)
+                          ? "Image / mask root directory"
+                          : "Image root directory"}
+                      </span>
+                      <span class="settings-hint">
+                        {SEGMENTATION_TASKS.includes(draft.taskType)
+                          ? "Directory used to resolve relative image and mask paths in the dataset."
+                          : "Directory used to resolve relative image paths in the dataset."}
+                      </span>
+                      <input class="settings-input" value={draft.imageFolderPath} disabled={locked} onInput={(e) => set("imageFolderPath", e.target.value)} />
+                    </label>
+                  </div>
+                </>
+              )}
 
               <div class="settings-card-divider" />
               <div class="settings-card-row">
@@ -1292,13 +1320,16 @@ export function SettingsView() {
               <div class="settings-card-row">
                 <label class="settings-field">
                   <span class="settings-label">Accelerator</span>
-                  <select class="settings-input" value={draft.accelerator || (draft.gpuDevices ? "cuda" : "auto")} disabled={locked}
-                    onChange={(e) => { set("accelerator", e.target.value); if (e.target.value !== "cuda") set("gpuDevices", ""); }}>
-                    <option value="auto">Auto (training machine)</option>
-                    <option value="cuda">NVIDIA CUDA</option>
-                    <option value="mps">Apple Metal (MPS)</option>
-                    <option value="cpu">CPU (Intel, AMD, Apple silicon)</option>
-                  </select>
+                  <div class="settings-select-wrap">
+                    <select class="settings-select" value={draft.accelerator || (draft.gpuDevices ? "cuda" : "auto")} disabled={locked}
+                      onChange={(e) => { set("accelerator", e.target.value); if (e.target.value !== "cuda") set("gpuDevices", ""); }}>
+                      <option value="auto">Auto (training machine)</option>
+                      <option value="cuda">NVIDIA CUDA</option>
+                      <option value="mps">Apple Metal (MPS)</option>
+                      <option value="cpu">CPU (Intel, AMD, Apple silicon)</option>
+                    </select>
+                    <span class="settings-select-chevron" />
+                  </div>
                 </label>
               </div>
               <div class="settings-card-row">
@@ -1331,15 +1362,6 @@ export function SettingsView() {
             </div>
           </section>
         </>
-      )}
-
-      {(draft.datasetFormat === "CSV" || draft.datasetFormat === "JSONL") && (
-        <section class="settings-section"><div class="settings-card"><div class="settings-card-row">
-          <label class="settings-field"><span class="settings-label">Image / mask root directory</span>
-            <span class="settings-hint">Directory used to resolve relative paths in the dataset.</span>
-            <input class="settings-input" value={draft.imageFolderPath} disabled={locked} onInput={(e) => set("imageFolderPath", e.target.value)} />
-          </label>
-        </div></div></section>
       )}
 
       {/* Save bar */}
@@ -1395,14 +1417,22 @@ export function SettingsView() {
                         const b64 = reader.result.split(",")[1];
                         setAugSourceImage(b64);
                         setAugPreviewLoading(true);
+                        setAugPreviewError(null);
                         invoke("preview_augmentation", {
                           projectPath: proj.projectPath,
                           imageBase64: b64,
                           preset: draft.augmentationPreset || "default",
-                          sshCommand: proj.connectionType === "ssh" ? proj.sshCommand : null,
+                          sshCommand:
+                            proj.connectionType === "remote" ? proj.sshCommand : null,
                         })
-                          .then((res) => setAugPreviewImages(res.images || []))
-                          .catch(() => setAugPreviewImages([]))
+                          // The command resolves to the array of base64 images itself.
+                          .then((images) => setAugPreviewImages(images || []))
+                          .catch((err) => {
+                            setAugPreviewImages([]);
+                            setAugPreviewError(
+                              typeof err === "string" ? err : err?.message || "Preview failed",
+                            );
+                          })
                           .finally(() => setAugPreviewLoading(false));
                       };
                       reader.readAsDataURL(file);
@@ -1418,12 +1448,15 @@ export function SettingsView() {
                     onClick={() => {
                       setAugSourceImage(null);
                       setAugPreviewImages([]);
+                      setAugPreviewError(null);
                     }}
                   >
                     Choose different image
                   </button>
                   {augPreviewLoading ? (
                     <p class="settings-hint">Generating augmented images...</p>
+                  ) : augPreviewError ? (
+                    <p class="settings-hint settings-hint-error">{augPreviewError}</p>
                   ) : augPreviewImages.length > 0 ? (
                     <div class="aug-preview-grid">
                       {augPreviewImages.map((img, i) => (

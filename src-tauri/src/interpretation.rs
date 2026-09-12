@@ -311,13 +311,45 @@ pub async fn run_interpretation(
 /// Preview augmentation transforms on an image.
 /// Runs a small Python script that applies augmentation preset transforms
 /// and returns base64-encoded augmented images.
+///
+/// The image arrives as base64 because the UI sources it from a file picker,
+/// which yields bytes rather than a path the backend could open. It is written
+/// to a temp file for the Python script and removed again before returning.
 #[command]
 pub async fn preview_augmentation(
     project_path: String,
-    image_path: String,
+    image_base64: String,
     preset: String,
+    ssh_command: Option<String>,
 ) -> Result<Vec<String>, String> {
+    // The preview always runs against the local project venv; there is no
+    // remote path here, so say so rather than silently previewing the wrong env.
+    if ssh_command.is_some() {
+        return Err(
+            "Augmentation preview runs locally and is not available for remote projects."
+                .to_string(),
+        );
+    }
+
     let pp = expand_tilde(project_path.trim_end_matches('/').trim_end_matches('\\'));
+
+    // Strip data URL prefix if present (e.g. "data:image/png;base64,")
+    let raw = match image_base64.find(',') {
+        Some(idx) => &image_base64[idx + 1..],
+        None => &image_base64,
+    };
+    let bytes = base64_decode(raw)?;
+
+    let tmp_path = std::env::temp_dir().join(format!(
+        "nightflow-aug-preview-{}.png",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    std::fs::write(&tmp_path, &bytes)
+        .map_err(|e| format!("Failed to stage preview image: {e}"))?;
+    let image_path = tmp_path.to_string_lossy().to_string();
 
     // Resolve python: prefer project venv
     let venv_python = crate::env::venv_python(&PathBuf::from(&pp).join(".venv"));
@@ -332,8 +364,11 @@ pub async fn preview_augmentation(
         .args(["-m", "autotimm.flow.augmentation_preview", "--image", &image_path, "--preset", &preset])
         .current_dir(&pp)
         .output()
-        .await
-        .map_err(|e| format!("Failed to run augmentation preview: {e}"))?;
+        .await;
+
+    let _ = std::fs::remove_file(&tmp_path);
+
+    let output = output.map_err(|e| format!("Failed to run augmentation preview: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

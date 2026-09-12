@@ -8,7 +8,7 @@ import {
   openWizard,
   openDeleteDialog,
 } from "../state/projects.js";
-import { sshConnected, dashboardSynced } from "../state/dashboard.js";
+import { isPageAvailable } from "../state/dashboard.js";
 import { aboutOpen } from "../app.jsx";
 
 const navItems = [
@@ -62,19 +62,9 @@ export function Sidebar() {
 
   const hideTooltip = useCallback(() => setTooltip(null), []);
 
-  const synced = dashboardSynced.value;
-  const connected = sshConnected.value;
-
-  // Only show nav items that are unlocked:
-  // - dashboard and settings are always visible
-  // - all other items require an active connection (SSH or localhost)
-  // - terminal additionally requires sync
-  const visibleNavItems = navItems.filter((item) => {
-    if (item.id === "dashboard" || item.id === "settings") return true;
-    if (!connected) return false;
-    if (item.id === "terminal") return synced;
-    return synced;
-  });
+  // Only show nav items that are unlocked. The same predicate gates the global
+  // keyboard shortcuts, so a shortcut can never reach a hidden view.
+  const visibleNavItems = navItems.filter((item) => isPageAvailable(item.id));
 
   return (
     <nav class="sidebar">
