@@ -370,18 +370,36 @@ pub async fn preview_augmentation(
 
     let output = output.map_err(|e| format!("Failed to run augmentation preview: {e}"))?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Augmentation preview failed: {stderr}"));
-    }
-
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let result: serde_json::Value =
-        serde_json::from_str(&stdout).map_err(|e| format!("Invalid JSON output: {e}"))?;
+    let parsed: Option<serde_json::Value> = serde_json::from_str(&stdout).ok();
 
-    if let Some(error) = result.get("error").and_then(|e| e.as_str()) {
+    // The script reports failures as {"error": ...} on stdout *and* exits 1,
+    // leaving stderr empty — so read the message out of stdout before falling
+    // back, or the user is told only that something failed.
+    if let Some(error) = parsed
+        .as_ref()
+        .and_then(|v| v.get("error"))
+        .and_then(|e| e.as_str())
+    {
         return Err(error.to_string());
     }
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let detail = if stderr.trim().is_empty() {
+            stdout.as_str()
+        } else {
+            stderr.trim()
+        };
+        return Err(if detail.is_empty() {
+            "Augmentation preview failed. Is autotimm installed in the project environment?"
+                .to_string()
+        } else {
+            format!("Augmentation preview failed: {detail}")
+        });
+    }
+
+    let result = parsed.ok_or_else(|| format!("Invalid JSON output: {stdout}"))?;
 
     if let Some(arr) = result.as_array() {
         Ok(arr
@@ -592,5 +610,39 @@ pub async fn export_jit_model(
         }
 
         Ok(output_path_str)
+    }
+}
+
+#[cfg(test)]
+mod base64_tests {
+    use super::base64_decode;
+
+    /// A real 1x1 PNG, as the UI's FileReader would hand it to us.
+    const PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8//8/AwAFAAH/pa6cpQAAAABJRU5ErkJggg==";
+    const PNG_BYTES: [u8; 70] = [
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48,
+        0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00,
+        0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78,
+        0xda, 0x63, 0xfc, 0xff, 0xff, 0x3f, 0x03, 0x00, 0x05, 0x00, 0x01, 0xff, 0xa5, 0xae,
+        0x9c, 0xa5, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+    ];
+
+    #[test]
+    fn decodes_a_real_png_upload_byte_for_byte() {
+        assert_eq!(base64_decode(PNG_B64).unwrap(), PNG_BYTES.to_vec());
+    }
+
+    #[test]
+    fn tolerates_whitespace_and_every_padding_length() {
+        // 0, 1 and 2 padding chars — i.e. input lengths % 3 of 0, 2 and 1.
+        assert_eq!(base64_decode("YWJj").unwrap(), b"abc".to_vec());
+        assert_eq!(base64_decode("YWI=").unwrap(), b"ab".to_vec());
+        assert_eq!(base64_decode("YQ==").unwrap(), b"a".to_vec());
+        assert_eq!(base64_decode("YWJ\n jZGVm").unwrap(), b"abcdef".to_vec());
+    }
+
+    #[test]
+    fn rejects_invalid_characters() {
+        assert!(base64_decode("abc$def").is_err());
     }
 }

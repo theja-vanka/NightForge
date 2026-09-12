@@ -1230,11 +1230,13 @@ export function SettingsView() {
                         set("augmentationPreset", e.target.value)
                       }
                     >
+                      {/* Mirrors AutoTimm's TORCHVISION_PRESETS registry, in order. */}
                       <option value="">Auto (default)</option>
                       <option value="default">Default</option>
                       <option value="autoaugment">AutoAugment</option>
                       <option value="randaugment">RandAugment</option>
                       <option value="trivialaugment">TrivialAugment</option>
+                      <option value="light">Light</option>
                     </select>
                     <span class="settings-select-chevron" />
                   </div>
